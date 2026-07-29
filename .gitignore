@@ -1,0 +1,12 @@
+# Terraform
+*.tfstate
+.terraform/
+*.tfvars
+# Java
+target/
+# IDE
+.vscode/
+.idea/
+# Secrets
+*.pem
+service-account.json

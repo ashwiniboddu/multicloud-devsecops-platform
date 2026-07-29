@@ -1,0 +1,38 @@
+jenkins:
+  systemMessage: "Multi-Cloud DevSecOps Jenkins Server"
+
+  numExecutors: 2
+
+  mode: NORMAL
+
+  scmCheckoutRetryCount: 3
+
+unclassified:
+
+  location:
+    url: "http://{{ ansible_host }}:8080/"
+
+tool:
+
+  git:
+    installations:
+      - name: "Default Git"
+        home: "/usr/bin/git"
+
+  maven:
+    installations:
+      - name: "Maven"
+        properties:
+          - installSource:
+              installers:
+                - maven:
+                    id: "3.9.9"
+
+  sonarRunnerInstallation:
+    installations:
+      - name: "SonarQube Scanner"
+        properties:
+          - installSource:
+              installers:
+                - sonarRunnerInstaller:
+                    id: "7.1.0.4887"

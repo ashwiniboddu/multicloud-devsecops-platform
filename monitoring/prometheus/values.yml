@@ -1,0 +1,70 @@
+prometheus:
+
+  prometheusSpec:
+
+    retention: 15d
+
+    scrapeInterval: 15s
+
+    evaluationInterval: 15s
+
+    resources:
+
+      requests:
+
+        cpu: 250m
+
+        memory: 512Mi
+
+      limits:
+
+        cpu: 500m
+
+        memory: 1Gi
+
+    storageSpec:
+
+      volumeClaimTemplate:
+
+        spec:
+
+          accessModes:
+
+            - ReadWriteOnce
+
+          resources:
+
+            requests:
+
+              storage: 20Gi
+
+
+alertmanager:
+
+  enabled: true
+
+  alertmanagerSpec:
+
+    resources:
+
+      requests:
+
+        cpu: 100m
+
+        memory: 128Mi
+
+      limits:
+
+        cpu: 250m
+
+        memory: 256Mi
+
+
+nodeExporter:
+
+  enabled: true
+
+
+kubeStateMetrics:
+
+  enabled: true

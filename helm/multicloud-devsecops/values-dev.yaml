@@ -1,0 +1,29 @@
+replicaCount: 1
+
+image:
+
+  repository: "YOUR_DEV_ECR_REPOSITORY"
+
+  tag: "latest"
+
+resources:
+
+  requests:
+
+    cpu: "100m"
+
+    memory: "128Mi"
+
+  limits:
+
+    cpu: "250m"
+
+    memory: "256Mi"
+
+hpa:
+
+  enabled: false
+
+ingress:
+
+  enabled: false

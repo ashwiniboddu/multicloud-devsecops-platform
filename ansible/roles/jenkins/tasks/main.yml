@@ -1,0 +1,585 @@
+---
+# ============================================================
+# 1. Update Ubuntu Package Cache
+# ============================================================
+
+- name: Update apt package cache
+
+  ansible.builtin.apt:
+
+    update_cache: true
+
+    cache_valid_time: 3600
+
+
+# ============================================================
+# 2. Install Required System Packages
+# ============================================================
+
+- name: Install required packages
+
+  ansible.builtin.apt:
+
+    name:
+
+      - "{{ java_package }}"
+
+      - git
+
+      - curl
+
+      - wget
+
+      - unzip
+
+      - ca-certificates
+
+      - gnupg
+
+      - apt-transport-https
+
+      - software-properties-common
+
+    state: present
+
+
+# ============================================================
+# 3. Install Docker
+# ============================================================
+
+- name: Install Docker
+
+  ansible.builtin.apt:
+
+    name: "{{ docker_package }}"
+
+    state: present
+
+
+- name: Start and enable Docker
+
+  ansible.builtin.service:
+
+    name: "{{ docker_service_name }}"
+
+    state: started
+
+    enabled: true
+
+
+# ============================================================
+# 4. Add Jenkins User to Docker Group
+# ============================================================
+
+- name: Add Jenkins user to Docker group
+
+  ansible.builtin.user:
+
+    name: jenkins
+
+    groups: docker
+
+    append: true
+
+  notify:
+
+    - Restart Jenkins
+
+
+# ============================================================
+# 5. Install AWS CLI
+# ============================================================
+
+- name: Check AWS CLI installation
+
+  ansible.builtin.command:
+
+    cmd: aws --version
+
+  register: aws_cli_check
+
+  changed_when: false
+
+  failed_when: false
+
+
+- name: Download AWS CLI
+
+  ansible.builtin.get_url:
+
+    url: https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
+
+    dest: /tmp/awscliv2.zip
+
+    mode: "0644"
+
+  when: aws_cli_check.rc != 0
+
+
+- name: Extract AWS CLI
+
+  ansible.builtin.unarchive:
+
+    src: /tmp/awscliv2.zip
+
+    dest: /tmp
+
+    remote_src: true
+
+  when: aws_cli_check.rc != 0
+
+
+- name: Install AWS CLI
+
+  ansible.builtin.command:
+
+    cmd: /tmp/aws/install
+
+  when: aws_cli_check.rc != 0
+
+
+# ============================================================
+# 6. Install kubectl
+# ============================================================
+
+- name: Check kubectl installation
+
+  ansible.builtin.command:
+
+    cmd: kubectl version --client
+
+  register: kubectl_check
+
+  changed_when: false
+
+  failed_when: false
+
+
+- name: Get latest stable Kubernetes version
+
+  ansible.builtin.shell:
+
+    cmd: curl -L -s https://dl.k8s.io/release/stable.txt
+
+  register: kubectl_stable_version
+
+  changed_when: false
+
+  when: kubectl_check.rc != 0
+
+
+- name: Download kubectl
+
+  ansible.builtin.get_url:
+
+    url: "https://dl.k8s.io/release/{{ kubectl_stable_version.stdout | trim }}/bin/linux/{{ kubectl_architecture }}/kubectl"
+
+    dest: /usr/local/bin/kubectl
+
+    mode: "0755"
+
+  when: kubectl_check.rc != 0
+
+
+# ============================================================
+# 7. Install Helm
+# ============================================================
+
+- name: Check Helm installation
+
+  ansible.builtin.command:
+
+    cmd: helm version --short
+
+  register: helm_check
+
+  changed_when: false
+
+  failed_when: false
+
+
+- name: Download Helm installation script
+
+  ansible.builtin.get_url:
+
+    url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+
+    dest: /tmp/get_helm.sh
+
+    mode: "0755"
+
+  when: helm_check.rc != 0
+
+
+- name: Install Helm
+
+  ansible.builtin.command:
+
+    cmd: /tmp/get_helm.sh
+
+  environment:
+
+    DESIRED_VERSION: "{{ helm_version }}"
+
+  when: helm_check.rc != 0
+
+
+# ============================================================
+# 8. Install Trivy
+# ============================================================
+
+- name: Check Trivy installation
+
+  ansible.builtin.command:
+
+    cmd: trivy --version
+
+  register: trivy_check
+
+  changed_when: false
+
+  failed_when: false
+
+
+- name: Download Trivy archive
+
+  ansible.builtin.get_url:
+
+    url: "https://github.com/aquasecurity/trivy/releases/download/v{{ trivy_version }}/trivy_{{ trivy_version }}_Linux-64bit.tar.gz"
+
+    dest: "/tmp/trivy_{{ trivy_version }}.tar.gz"
+
+    mode: "0644"
+
+  when: trivy_check.rc != 0
+
+
+- name: Create temporary Trivy directory
+
+  ansible.builtin.file:
+
+    path: /tmp/trivy
+
+    state: directory
+
+    mode: "0755"
+
+  when: trivy_check.rc != 0
+
+
+- name: Extract Trivy
+
+  ansible.builtin.unarchive:
+
+    src: "/tmp/trivy_{{ trivy_version }}.tar.gz"
+
+    dest: /tmp/trivy
+
+    remote_src: true
+
+  when: trivy_check.rc != 0
+
+
+- name: Install Trivy binary
+
+  ansible.builtin.copy:
+
+    src: /tmp/trivy/trivy
+
+    dest: /usr/local/bin/trivy
+
+    remote_src: true
+
+    mode: "0755"
+
+  when: trivy_check.rc != 0
+
+
+# ============================================================
+# 9. Install Jenkins Repository Key
+# ============================================================
+
+- name: Download Jenkins repository key
+
+  ansible.builtin.get_url:
+
+    url: https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+
+    dest: /usr/share/keyrings/jenkins-keyring.asc
+
+    mode: "0644"
+
+
+# ============================================================
+# 10. Add Jenkins Repository
+# ============================================================
+
+- name: Add Jenkins repository
+
+  ansible.builtin.apt_repository:
+
+    repo: "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/"
+
+    filename: jenkins
+
+    state: present
+
+
+# ============================================================
+# 11. Install Jenkins
+# ============================================================
+
+- name: Install Jenkins
+
+  ansible.builtin.apt:
+
+    name: jenkins
+
+    state: present
+
+    update_cache: true
+
+
+# ============================================================
+# 12. Start Jenkins
+# ============================================================
+
+- name: Start and enable Jenkins
+
+  ansible.builtin.service:
+
+    name: "{{ jenkins_service_name }}"
+
+    state: started
+
+    enabled: true
+
+
+# ============================================================
+# 13. Wait for Jenkins
+# ============================================================
+
+- name: Wait for Jenkins to become available
+
+  ansible.builtin.wait_for:
+
+    port: "{{ jenkins_port }}"
+
+    host: 127.0.0.1
+
+    delay: 5
+
+    timeout: 60
+
+
+# ============================================================
+# 14. Display Tool Versions
+# ============================================================
+
+- name: Check Java version
+
+  ansible.builtin.command:
+
+    cmd: java -version
+
+  register: java_version
+
+  changed_when: false
+
+  failed_when: false
+
+
+- name: Check Docker version
+
+  ansible.builtin.command:
+
+    cmd: docker --version
+
+  register: docker_version
+
+  changed_when: false
+
+  failed_when: false
+
+
+- name: Check AWS CLI version
+
+  ansible.builtin.command:
+
+    cmd: aws --version
+
+  register: aws_version
+
+  changed_when: false
+
+  failed_when: false
+
+
+- name: Check kubectl version
+
+  ansible.builtin.command:
+
+    cmd: kubectl version --client
+
+  register: kubectl_version_output
+
+  changed_when: false
+
+  failed_when: false
+
+
+- name: Check Helm version
+
+  ansible.builtin.command:
+
+    cmd: helm version --short
+
+  register: helm_version_output
+
+  changed_when: false
+
+  failed_when: false
+
+
+- name: Check Trivy version
+
+  ansible.builtin.command:
+
+    cmd: trivy --version
+
+  register: trivy_version_output
+
+  changed_when: false
+
+  failed_when: false
+
+
+- name: Display installed tool versions
+
+  ansible.builtin.debug:
+
+    msg:
+
+      - "Java: {{ java_version.stderr | default('Unknown') }}"
+
+      - "Docker: {{ docker_version.stdout | default('Unknown') }}"
+
+      - "AWS CLI: {{ aws_version.stdout | default('Unknown') }}"
+
+      - "kubectl: {{ kubectl_version_output.stdout | default('Unknown') }}"
+
+      - "Helm: {{ helm_version_output.stdout | default('Unknown') }}"
+
+      - "Trivy: {{ trivy_version_output.stdout | default('Unknown') }}"
+
+# ============================================================
+# 15. Download Jenkins CLI
+# ============================================================
+
+- name: Install Jenkins plugins
+
+  ansible.builtin.get_url:
+
+    url: "{{ jenkins_cli_jar_url }}"
+
+    dest: /tmp/jenkins-cli.jar
+
+    mode: "0644"
+
+  retries: 10
+
+  delay: 5
+
+
+# ============================================================
+# 16. Install Jenkins Plugins
+# ============================================================
+
+- name: Install Jenkins plugins
+
+  ansible.builtin.command:
+
+    cmd: >
+      java -jar /tmp/jenkins-cli.jar
+      -s http://127.0.0.1:8080/
+      install-plugin {{ item }}
+
+  loop: "{{ jenkins_plugins }}"
+
+  register: jenkins_plugin_install
+
+  changed_when: "'already installed' not in jenkins_plugin_install.stdout"
+
+  notify:
+
+    - Restart Jenkins
+
+# ============================================================
+# 17. Create Jenkins Configuration Directory
+# ============================================================
+
+- name: Create Jenkins JCasC configuration directory
+
+  ansible.builtin.file:
+
+    path: /var/lib/jenkins/casc_configs
+
+    state: directory
+
+    owner: jenkins
+
+    group: jenkins
+
+    mode: "0755"
+
+
+# ============================================================
+# 18. Deploy Jenkins JCasC Configuration
+# ============================================================
+
+- name: Deploy Jenkins JCasC configuration
+
+  ansible.builtin.template:
+
+    src: jenkins.yaml.j2
+
+    dest: /var/lib/jenkins/casc_configs/jenkins.yaml
+
+    owner: jenkins
+
+    group: jenkins
+
+    mode: "0644"
+
+  notify:
+
+    - Restart Jenkins
+
+# ============================================================
+# 19. Configure Jenkins JCasC Environment
+# ============================================================
+
+- name: Create Jenkins systemd override directory
+
+  ansible.builtin.file:
+
+    path: /etc/systemd/system/jenkins.service.d
+
+    state: directory
+
+    mode: "0755"
+
+
+- name: Configure Jenkins JCasC environment variable
+
+  ansible.builtin.template:
+
+    src: jenkins.service.override.conf.j2
+
+    dest: /etc/systemd/system/jenkins.service.d/override.conf
+
+    mode: "0644"
+
+  notify:
+
+    - Reload systemd and restart Jenkins
