@@ -7,7 +7,8 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.14</version>
+        <!-- FIX: Upgraded parent framework to clear CVE-2026-41850, CVE-2026-41842, and CVE-2026-41845 -->
+        <version>3.5.15</version>
         <relativePath/>
     </parent>
 
@@ -31,21 +32,21 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
-        <!-- Java 21 & Spring Boot 3.5 Compatible GitHub API -->
+        <!-- Java 21 & Spring Boot 3.5+ Stable Token GitHub API Component -->
         <dependency>
             <groupId>org.kohsuke</groupId>
             <artifactId>github-api</artifactId>
             <version>1.326</version>
         </dependency>
 
-        <!-- Upgraded to mitigate high CVE vulnerabilities flagged during Trivy Scans -->
+        <!-- Patched to mitigate file handling vulnerabilities flagged during Trivy auditing -->
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
             <version>2.16.1</version>
         </dependency>
 
-        <!-- Restored version matching your legacy imports layout directly -->
+        <!-- Preserved stable version to align flawlessly with legacy controller class signatures -->
         <dependency>
             <groupId>org.twitter4j</groupId>
             <artifactId>twitter4j-core</artifactId>

@@ -38,6 +38,7 @@ apt-get install -y \
     fontconfig \
     openjdk-21-jdk \
     git \
+    maven \
     ca-certificates \
     curl \
     unzip \
@@ -58,6 +59,7 @@ echo "Checking Java..."
 
 java -version
 
+mvn --version
 
 # ============================================================
 # 3. Install Docker
