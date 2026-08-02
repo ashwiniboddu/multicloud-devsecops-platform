@@ -1,17 +1,6 @@
 ---
-java_package: openjdk-21-jdk
-
-docker_package: docker.io
-docker_service_name: docker
-
 jenkins_service_name: jenkins
 jenkins_port: 8080
-
-kubectl_architecture: amd64
-
-helm_version: "v3.17.3"
-
-trivy_version: "0.59.1"
 
 jenkins_plugins:
   - workflow-aggregator
@@ -24,5 +13,3 @@ jenkins_plugins:
   - sonar
   - email-ext
   - configuration-as-code
-
-jenkins_cli_jar_url: "http://127.0.0.1:8080/jnlpJars/jenkins-cli.jar"

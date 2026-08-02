@@ -1,10 +1,8 @@
 ---
 - name: Configure Jenkins Server
-
-  hosts: jenkins
-
+  hosts: localhost
+  connection: local
   become: true
 
   roles:
-
     - jenkins

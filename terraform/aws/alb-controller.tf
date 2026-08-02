@@ -12,6 +12,10 @@ resource "helm_release" "aws_load_balancer_controller" {
 
   version = "1.13.0"
 
+  wait = true
+
+  timeout = 600
+
   set = [
 
     {
@@ -49,6 +53,8 @@ resource "helm_release" "aws_load_balancer_controller" {
   depends_on = [
 
     aws_eks_cluster.main,
+
+    aws_eks_node_group.main,
 
     aws_iam_role_policy_attachment.aws_load_balancer_controller
 

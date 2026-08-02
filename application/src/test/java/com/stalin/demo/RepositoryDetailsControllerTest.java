@@ -1,4 +1,4 @@
-package com.stalin.demo;
+package com.satish.demo;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,7 +17,6 @@ public class RepositoryDetailsControllerTest extends AbstractTest {
 
     @Test
     public void getProductsList() throws Exception {
-        // STEP 1 FIX: Change the path string to match your real code routing
         String uri = "/"; 
         
         MvcResult mvcResult = mvc.perform(MockMvcRequestBuilders.get(uri)

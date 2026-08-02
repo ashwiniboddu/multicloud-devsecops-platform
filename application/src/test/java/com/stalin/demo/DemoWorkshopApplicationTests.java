@@ -1,15 +1,15 @@
-package com.stalin.demo;
+package com.satish.demo;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
-import java.util.*;
+import java.util.List;
+import java.util.ArrayList;
 
 @SpringBootTest
 class DemoWorkshopApplicationTests {
 
-	@Test
-	void contextLoads() {
-		List li = new ArrayList<String> ();
-	}
-
+    @Test
+    void contextLoads() {
+        List<String> li = new ArrayList<>();
+    }
 }

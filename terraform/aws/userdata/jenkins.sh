@@ -36,7 +36,7 @@ apt-get update -y
 
 apt-get install -y \
     fontconfig \
-    openjdk-21-jre \
+    openjdk-21-jdk \
     git \
     ca-certificates \
     curl \

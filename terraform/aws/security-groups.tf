@@ -97,50 +97,36 @@ resource "aws_security_group" "jenkins_sg" {
 
 resource "aws_security_group" "eks_sg" {
 
-  name = "${local.project_prefix}-eks-sg"
-
+  name        = "${local.project_prefix}-eks-sg"
   description = "Security group for EKS cluster"
-
-  vpc_id = aws_vpc.main.id
+  vpc_id      = aws_vpc.main.id
 
   ingress {
-
-    description = "Allow HTTPS API access"
+    description = "Allow EKS API traffic from VPC"
 
     from_port = 443
-
-    to_port = 443
-
-    protocol = "tcp"
+    to_port   = 443
+    protocol  = "tcp"
 
     cidr_blocks = [
-      "0.0.0.0/0"
+      var.vpc_cidr
     ]
-
   }
 
   egress {
-
     description = "Allow all outbound traffic"
 
     from_port = 0
-
-    to_port = 0
-
-    protocol = "-1"
+    to_port   = 0
+    protocol  = "-1"
 
     cidr_blocks = [
       "0.0.0.0/0"
     ]
-
   }
 
   tags = {
-
     Name = "${local.project_prefix}-eks-sg"
-
     Tier = "Private"
-
   }
-
 }

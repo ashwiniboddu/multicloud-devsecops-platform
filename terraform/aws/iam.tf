@@ -215,3 +215,8 @@ resource "aws_iam_role_policy_attachment" "jenkins_eks" {
   policy_arn = aws_iam_policy.jenkins_eks.arn
 
 }
+
+resource "aws_iam_role_policy_attachment" "eks_container_registry_read_only" {
+  role       = aws_iam_role.eks_node_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+}
