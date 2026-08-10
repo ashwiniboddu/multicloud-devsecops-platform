@@ -1,5 +1,4 @@
 grafana:
-
   enabled: true
 
   adminUser: admin
@@ -7,41 +6,6 @@ grafana:
   adminPassword: change-me
 
   persistence:
-
     enabled: true
-
+    storageClassName: ebs-gp3
     size: 10Gi
-
-  resources:
-
-    requests:
-
-      cpu: 100m
-
-      memory: 256Mi
-
-    limits:
-
-      cpu: 250m
-
-      memory: 512Mi
-
-  service:
-
-    type: ClusterIP
-
-  ingress:
-
-    enabled: false
-
-  sidecar:
-
-    dashboards:
-
-      enabled: true
-
-      searchNamespace: ALL
-
-      provider:
-
-        foldersFromFilesStructure: true

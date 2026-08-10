@@ -8,18 +8,18 @@ prometheus:
 
     evaluationInterval: 15s
 
+    externalUrl: /prometheus
+
+    routePrefix: /prometheus
+
     resources:
 
       requests:
-
         cpu: 250m
-
         memory: 512Mi
 
       limits:
-
         cpu: 500m
-
         memory: 1Gi
 
     storageSpec:
@@ -29,42 +29,9 @@ prometheus:
         spec:
 
           accessModes:
-
             - ReadWriteOnce
 
           resources:
 
             requests:
-
               storage: 20Gi
-
-
-alertmanager:
-
-  enabled: true
-
-  alertmanagerSpec:
-
-    resources:
-
-      requests:
-
-        cpu: 100m
-
-        memory: 128Mi
-
-      limits:
-
-        cpu: 250m
-
-        memory: 256Mi
-
-
-nodeExporter:
-
-  enabled: true
-
-
-kubeStateMetrics:
-
-  enabled: true
