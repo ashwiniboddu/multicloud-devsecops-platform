@@ -1,7 +1,7 @@
-prometheus:
-
-  prometheusSpec:
-
+prometheus:                                                                                                                   PORTS   AGE
+                                                                          3a6296f90f-1198916039.us-east-1.elb.amazonaws.com   80      4h14m
+  prometheusSpec:                                                         108d2de4d2-30777363.us-east-1.elb.amazonaws.com     80      2m57s
+                                                                          f49b8c3dc8-37370543.us-east-1.elb.amazonaws.com     80      5h17m
     retention: 15d
 
     scrapeInterval: 15s

@@ -187,14 +187,34 @@ echo "Trivy installed successfully."
 trivy --version
 
 # ============================================================
-# 9. Refresh Jenkins Docker Group
+# 9. Install Sonar Scanner
+# ============================================================
+echo "Installing Sonar Scanner..."
+
+cd /opt
+rm -f sonar-scanner.zip
+wget -O sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-8.1.0.6389-linux-x64.zip
+unzip -o sonar-scanner.zip
+
+rm -rf /opt/sonar-scanner
+mv sonar-scanner-8.1.0.6389-linux-x64 /opt/sonar-scanner
+rm -f sonar-scanner.zip
+
+chmod +x /opt/sonar-scanner/bin/sonar-scanner
+ln -sf /opt/sonar-scanner/bin/sonar-scanner /usr/local/bin/sonar-scanner
+
+echo "Sonar Scanner installed successfully."
+sonar-scanner --version
+
+# ============================================================
+# 10. Refresh Jenkins Docker Group
 # ============================================================
 echo "Refreshing Jenkins Docker permissions..."
 systemctl restart jenkins
 sleep 10
 
 # ============================================================
-# 10. Final Verification
+# 11. Final Verification
 # ============================================================
 echo ""
 echo "============================================================"
@@ -209,6 +229,7 @@ echo "AWS CLI:" && aws --version
 echo "kubectl:" && kubectl version --client
 echo "Helm:" && helm version --short
 echo "Trivy:" && trivy --version
+echo "Sonar Scanner:" && sonar-scanner --version
 echo "Jenkins Service:" && systemctl is-active jenkins
 
 echo ""

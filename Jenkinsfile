@@ -16,11 +16,13 @@ pipeline {
         // =========================================
 
         AWS_REGION = 'us-east-1'
-        AWS_ACCOUNT_ID = '292139250753'
+        AWS_ACCOUNT_ID = '554074174392'
 
-        SONAR_HOST_URL = 'k8s-sonarqub-sonarqub-f49b8c3dc8-1258490887.us-east-1.elb.amazonaws.com'
+        SONAR_HOST_URL = 'http://k8s-sonarqub-sonarqub-f49b8c3dc8-37370543.us-east-1.elb.amazonaws.com'
 
         SONAR_TOKEN = 'sonarqube-token'
+        
+        
 
 
         // =========================================
@@ -59,6 +61,17 @@ pipeline {
         K8S_CONTAINER_NAME = 'application'
 
         K8S_SERVICE_NAME = 'application-service'
+
+        // =========================================
+        // HELM CONFIGURATION
+        // =========================================
+
+        HELM_RELEASE_NAME = 'application'
+
+        HELM_CHART_PATH = 'helm/application'
+
+        HELM_NAMESPACE = 'application'
+
     }
 
 
@@ -149,14 +162,15 @@ pipeline {
 
         stage('OWASP Dependency Check') {
             steps {
-                script {
-
-                    dependencyCheck(
-                        odcInstallation: 'dependency-checkk',
-                        additionalArguments: '--scan application --format XML --format HTML --noupdate'
-                    )
-
-                }
+                dependencyCheck(
+                    odcInstallation: 'dependency-checkk',
+                    nvdCredentialsId: 'nvd-api-key',
+                    additionalArguments: '''
+                        --scan application
+                        --disableYarnAudit
+                        --disableNodeAudit
+                        '''
+                )
             } 
         }
 
@@ -378,175 +392,439 @@ pipeline {
             }
         }
 
+        // =========================================
+        // STAGE 10: HELM VALIDATION
+        // =========================================
+
+        stage('Validate Helm Chart') {
+        
+            steps {
+
+            echo '========================================='
+            echo 'Validating Helm Chart'
+            echo '========================================='
+
+            sh '''
+                set -e 
+
+                echo "Helm version"
+                helm version
+
+                echo "Running Helm lint..."
+
+                helm lint ${HELM_CHART_PATH}
+
+                echo "Helm chart validation successful."
+              ''' 
+            }
+        }
+
 
         // =========================================
-        // STAGE 10: CREATE KUBERNETES NAMESPACE
+        // STAGE 11: HELM DEPLOY APPLICATION
         // =========================================
 
-        stage('Create Kubernetes Namespace') {
+        stage('Deploy Application with Helm') {
 
             steps {
 
                 echo '========================================='
-                echo 'Creating Kubernetes Namespace'
+                echo 'Deploying Application using Helm'
                 echo '========================================='
+
+                echo "Helm Release: ${HELM_RELEASE_NAME}"
+                echo "Helm Chart: ${HELM_CHART_PATH}"
+                echo "Namespace: ${HELM_NAMESPACE}"
+                echo "Image: ${IMAGE_NAME}:${IMAGE_TAG}"
 
                 sh '''
                     set -e
-
-                    kubectl apply \
-                        -f kubernetes/namespace.yaml
+                                                                           
+                    helm upgrade --install ${HELM_RELEASE_NAME} ${HELM_CHART_PATH} \
+                        --namespace ${HELM_NAMESPACE} \
+                        --create-namespace \
+                        --set image.repository=${IMAGE_NAME} \
+                        --set image.tag=${IMAGE_TAG} \
+                       
+                    echo "Helm deployment completed."
                 '''
             }
         }
 
 
         // =========================================
-        // STAGE 11: DEPLOY CONFIGURATION
+        // STAGE 12: VERIFY HELM ROLLOUT
         // =========================================
 
-        stage('Deploy Application Configuration') {
+        stage('Verify Helm Rollout') {
 
             steps {
 
                 echo '========================================='
-                echo 'Deploying ConfigMap and Secret'
+                echo 'Verifying Kubernetes Deployment Rollout'
                 echo '========================================='
 
                 sh '''
                     set -e
 
-                    kubectl apply \
-                    -f kubernetes/configmap.yaml
-
-                    kubectl apply \
-                    -f kubernetes/secret.yaml
-                '''
-            }
-        }
-
-
-        // =========================================
-        // STAGE 12: DEPLOY APPLICATION
-        // =========================================
-
-        stage('Deploy Application to EKS') {
-
-            steps {
-
-                echo '========================================='
-                echo 'Deploying Application to Amazon EKS'
-                echo '========================================='
-
-                sh '''
-                    set -e
-
-                    kubectl apply \
-                    -f kubernetes/deployment.yaml
-
-                    kubectl apply \
-                    -f kubernetes/service.yaml
-                '''
-            }
-        }
-
-
-        // =========================================
-        // STAGE 13: UPDATE IMAGE
-        // =========================================
-
-        stage('Update Application Image') {
-
-            steps {
-
-                echo '========================================='
-                echo 'Updating Kubernetes Deployment Image'
-                echo '========================================='
-
-                echo "Updating deployment with image:"
-                echo "${IMAGE_NAME}:${IMAGE_TAG}"
-
-                sh '''
-                    set -e
-
-                    kubectl -n ${K8S_NAMESPACE} set image \
-                        deployment/${K8S_DEPLOYMENT_NAME} \
-                        ${K8S_CONTAINER_NAME}=${IMAGE_NAME}:${IMAGE_TAG}
-
-                    kubectl -n ${K8S_NAMESPACE} rollout status \
+                    kubectl -n ${HELM_NAMESPACE} rollout status \
                         deployment/${K8S_DEPLOYMENT_NAME} \
                         --timeout=180s
+
+                    echo "Deployment rollout completed successfully."
                 '''
             }
         }
 
 
         // =========================================
-        // STAGE 14: WAIT FOR ROLLOUT
+        // STAGE 13: VERIFY APPLICATION
         // =========================================
 
-        stage('Wait for Deployment Rollout') {
+        stage('Verify Application') {
 
             steps {
 
                 echo '========================================='
-                echo 'Waiting for Kubernetes Deployment Rollout'
+                echo 'Verifying Application Deployment'
                 echo '========================================='
 
                 sh '''
                     set -e
 
-                    kubectl -n ${K8S_NAMESPACE} rollout status \
-                        deployment/${K8S_DEPLOYMENT_NAME} \
-                        --timeout=180s
-                '''
-            }
-        }
+                    echo "===== HELM RELEASE ====="
 
+                    helm list \
+                        --namespace ${HELM_NAMESPACE}
 
-        // =========================================
-        // STAGE 15: VERIFY DEPLOYMENT
-        // =========================================
-
-        stage('Verify Deployment') {
-
-            steps {
-
-                echo '========================================='
-                echo 'Verifying Kubernetes Deployment'
-                echo '========================================='
-
-                sh '''
-                    set -e
+                    echo ""
 
                     echo "===== DEPLOYMENTS ====="
 
-                    kubectl -n ${K8S_NAMESPACE} \
-                    get deployments
+                    kubectl -n ${HELM_NAMESPACE} \
+                        get deployments
+
+                    echo ""
 
                     echo "===== PODS ====="
 
-                    kubectl -n ${K8S_NAMESPACE} \
+                    kubectl -n ${HELM_NAMESPACE} \
                         get pods -o wide
+
+                    echo ""
 
                     echo "===== SERVICES ====="
 
-                    kubectl -n ${K8S_NAMESPACE} \
+                    kubectl -n ${HELM_NAMESPACE} \
                         get services
-    
-                    echo "===== DEPLOYMENT IMAGE ====="
 
-                    kubectl -n ${K8S_NAMESPACE} \
+                    echo ""
+
+                    echo "===== INGRESS ====="
+
+                    kubectl -n ${HELM_NAMESPACE} \
+                        get ingress
+
+                    echo ""
+
+                    echo "===== DEPLOYED IMAGE ====="
+
+                    DEPLOYED_IMAGE=$(kubectl -n ${HELM_NAMESPACE} \
                         get deployment ${K8S_DEPLOYMENT_NAME} \
-                        -o jsonpath='{.spec.template.spec.containers[0].image}'
+                        -o jsonpath='{.spec.template.spec.containers[0].image}')
+
+
+                    echo "Deployed image:"
+                    echo "${DEPLOYED_IMAGE}"
 
                     echo ""
 
                     echo "===== EXPECTED IMAGE ====="
-    
-                    echo "${IMAGE_NAME}:${IMAGE_TAG}"
+
+                    EXPECTED_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
+                    
+                    echo "Expected image:"
+                    echo "${EXPECTED_IMAGE}"
+
+                    echo ""
+                   
+                    echo "===== IMAGE VERIFICATION ====="
+                    
+                    if [ "${DEPLOYED_IMAGE}" != "${EXPECTED_IMAGE}" ]; then
+                        echo "ERROR: Deployed image does not match expected image."
+                        exit 1
+                    fi
+
+                    echo "SUCCESS: Deployed image matches expected image."
+
+                    echo ""
+
+                    echo "===== POD READINESS ====="
+                    
+                    kubectl -n ${HELM_NAMESPACE} \
+                        wait \
+                        --for=condition=Ready \
+                        pods \
+                        --all \
+                        --timeout=120s
+                    
+                    echo "SUCCESS: All application pods are Ready."
+
+                    echo ""
+
+                    echo "Application deployment verification completed successfully."
                 '''
             }
+        }
+
+        // =========================================
+        // STAGE: CREATE MONITORING NAMESPACE
+        // =========================================
+
+        stage('Create Monitoring Namespace') {
+
+            steps {
+
+                echo '========================================='
+                echo 'Creating Monitoring Namespace'
+                echo '========================================='
+
+                sh '''
+                    set -e
+
+                    kubectl apply \
+                        -f monitoring/namespace.yaml
+                '''
+            }
+        }
+
+        // =========================================
+        // STAGE: CONFIGURE MONITORING HELM REPOSITORY
+        // =========================================
+
+        stage('Configure Monitoring Helm Repository') {
+
+            steps {
+
+                echo '========================================='
+                echo 'Configuring Prometheus Community Helm Repository'
+                echo '========================================='
+
+                sh '''
+                    set -e
+
+                    helm repo add prometheus-community \
+                        https://prometheus-community.github.io/helm-charts \
+                        --force-update
+
+                    helm repo update
+
+                    echo "Prometheus Community Helm repository configured successfully."
+                '''
+            }
+        }
+
+        // =========================================
+        // STAGE: VALIDATE MONITORING HELM
+        // =========================================
+
+        stage('Validate Monitoring Helm') {
+
+            steps {
+
+               echo '========================================='
+               echo 'Validating Monitoring Helm Configuration'
+               echo '========================================='
+
+                sh ''' 
+                    set -e
+
+                    helm template monitoring prometheus-community/kube-prometheus-stack \
+                        --namespace monitoring \
+                        -f monitoring/prometheus/values.yaml \
+                        > /tmp/monitoring-rendered.yaml
+                        
+                    echo "Monitoring Helm validation successful."
+
+                    echo "Rendered resources:"
+                    grep '^kind:' /tmp/monitoring-rendered.yaml | sort | uniq -c
+                '''
+            } 
+        }   
+
+        // =========================================
+        // STAGE: DEPLOY PROMETHEUS AND GRAFANA
+        // =========================================
+
+        stage('Deploy Monitoring Stack') {  
+
+            steps {
+
+                echo '========================================='
+                echo 'Deploying Prometheus and Grafana'
+                echo '========================================='
+
+                sh '''
+                    set -e
+
+                    helm upgrade --install kube-prometheus-stack \
+                        prometheus-community/kube-prometheus-stack \
+                        --namespace monitoring \
+                        --create-namespace \
+                        -f monitoring/prometheus/values.yaml \
+                        -f monitoring/grafana/values.yaml \
+                        --wait \
+                        --timeout 10m
+
+                    echo "Prometheus and Grafana deployment completed."
+                '''
+            }
+        }  
+
+        // =========================================
+        // STAGE: DEPLOY GRAFANA DASHBOARDS
+        // =========================================
+
+        stage('Deploy Grafana Dashboards') {
+
+            steps {
+
+                echo '========================================='
+                echo 'Deploying Grafana Dashboards'
+                echo '========================================='
+
+                sh '''
+                    set -e
+
+                    kubectl create configmap grafana-dashboards \
+                        --from-file=monitoring/grafana/dashboards/ \
+                        --namespace monitoring \
+                        --dry-run=client \
+                        -o yaml \
+                        | kubectl label --local -f - \
+                            grafana_dashboard=1 \
+                            -o yaml \
+                        | kubectl apply -f -
+
+                    echo "Grafana dashboards deployed successfully."
+                '''
+            }
+        }
+
+        // =========================================
+        // STAGE: DEPLOY MONITORING INGRESS
+        // =========================================
+
+        stage('Deploy Monitoring Ingress') {       
+
+            steps {
+
+                echo '========================================='
+                echo 'Deploying Monitoring Ingress'
+                echo '========================================='
+
+                sh '''    
+                     
+                    set -e
+
+                    kubectl apply \
+                        -f monitoring/ingress.yaml
+
+                    echo "Monitoring ingress deployed successfully."
+                '''
+            }
+        }
+
+        // =========================================
+        // STAGE: WAIT FOR MONITORING
+        // =========================================
+
+        stage('Wait for Monitoring') {
+
+            steps {     
+
+                echo '========================================='
+                echo 'Waiting for Monitoring Components'
+                echo '========================================='
+
+                sh '''
+                    set -e
+
+                    kubectl wait \
+                        --for=condition=Ready \
+                        pods \
+                        --all \
+                        -n monitoring \
+                        --timeout=600s
+
+                    echo "All monitoring pods are ready."
+                '''
+            }    
+        }
+
+        // =========================================
+        // STAGE: VERIFY MONITORING
+        // =========================================
+
+        stage('Verify Monitoring') {
+
+            steps {
+
+                echo '========================================='
+                echo 'Verifying Monitoring Stack'
+                echo '========================================='
+
+                sh '''
+                    
+                    set -e
+
+                    echo "===== HELM RELEASE ====="
+
+                    helm list \
+                        --namespace monitoring
+
+                    echo ""
+
+                    echo "===== MONITORING PODS ====="
+
+                    kubectl get pods \
+                        -n monitoring \
+                        -o wide
+
+                    echo ""
+
+                    echo "===== SERVICES ====="
+
+                    kubectl get services \
+                        -n monitoring
+
+                    echo ""
+
+                    echo "===== PROMETHEUS ====="
+
+                    kubectl get prometheus \
+                        -n monitoring
+
+                    echo ""
+
+                    echo "===== GRAFANA DASHBOARDS ====="
+
+                    kubectl get configmaps \
+                        -n monitoring \
+                        -l grafana_dashboard=1
+
+                    echo ""
+
+                    echo "===== MONITORING INGRESS ====="
+
+                    kubectl get ingress \
+                        -n monitoring
+
+                    echo ""
+
+                    echo "Monitoring verification completed successfully."
+                '''
+            }    
         }
     }
 
