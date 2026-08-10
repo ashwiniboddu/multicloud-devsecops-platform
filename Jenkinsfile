@@ -1,598 +1,597 @@
 pipeline {
 
+
     agent any
 
-
-    // =========================================================
-    // PARAMETERS
-    // =========================================================
-
-    parameters {
-
-        string(
-            name: 'IMAGE_TAG',
-            defaultValue: '',
-            description: 'Docker image tag. Leave empty to use Jenkins BUILD_NUMBER.'
-        )
-
-        choice(
-            name: 'ENVIRONMENT',
-            choices: [
-                'dev'
-            ],
-            description: 'Deployment environment'
-        )
-
+    options {
+        disableConcurrentBuilds()
+        skipDefaultCheckout(true)
+        timestamps()
     }
-
-
-    // =========================================================
-    // ENVIRONMENT VARIABLES
-    // =========================================================
 
     environment {
 
+        // =========================================
+        // AWS CONFIGURATION
+        // =========================================
+
         AWS_REGION = 'us-east-1'
+        AWS_ACCOUNT_ID = '292139250753'
 
-        AWS_ACCOUNT_ID = ''
+        SONAR_HOST_URL = 'k8s-sonarqub-sonarqub-f49b8c3dc8-1258490887.us-east-1.elb.amazonaws.com'
 
-        ECR_REGISTRY = ''
+        SONAR_TOKEN = 'sonarqube-token'
 
-        ECR_REPOSITORY = 'multicloud-devsecops-app'
+
+        // =========================================
+        // ECR CONFIGURATION
+        // =========================================
+
+        ECR_REPOSITORY = 'multicloud-devsecops-dev-app'
+
+        ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+
+        // =========================================
+        // DOCKER IMAGE CONFIGURATION
+        // =========================================
+
+        IMAGE_NAME = "${ECR_REGISTRY}/${ECR_REPOSITORY}"
+
+        IMAGE_TAG = "${BUILD_NUMBER}"
+
+
+        // =========================================
+        // EKS CONFIGURATION
+        // =========================================
 
         EKS_CLUSTER_NAME = 'multicloud-devsecops-dev-eks'
 
-        KUBERNETES_NAMESPACE = 'application'
 
-        HELM_RELEASE_NAME = 'multicloud-devsecops'
+        // =========================================
+        // KUBERNETES CONFIGURATION
+        // =========================================
 
-        HELM_CHART_PATH = 'helm/multicloud-devsecops'
+        K8S_NAMESPACE = 'application'
 
-        IMAGE_TAG = "${params.IMAGE_TAG ?: env.BUILD_NUMBER}"
+        K8S_DEPLOYMENT_NAME = 'application'
 
-        DOCKER_IMAGE = ''
+        K8S_CONTAINER_NAME = 'application'
 
-        NOTIFICATION_EMAIL = 'ashwiniboddu04@gmail.com'
-
+        K8S_SERVICE_NAME = 'application-service'
     }
 
-
-    // =========================================================
-    // PIPELINE STAGES
-    // =========================================================
 
     stages {
 
 
-        // =====================================================
-        // 1. CHECKOUT
-        // =====================================================
-
+        // =========================================
+        // STAGE 1: CHECKOUT
+        // =========================================
+    
         stage('Checkout') {
 
             steps {
 
-                echo 'Checking out source code from GitHub...'
+                echo '========================================='
+                echo 'Checking out source code from GitHub'
+                echo '========================================='
 
-                checkout scm
-
+                git(
+                    branch: 'main',
+                    url: 'https://github.com/ashwiniboddu/multicloud-devsecops-platform.git'
+                )
             }
-
         }
 
 
-        // =====================================================
-        // 2. INITIALIZE BUILD VARIABLES
-        // =====================================================
-
-        stage('Initialize Build') {
-
-            steps {
-
-                script {
-
-                    env.AWS_ACCOUNT_ID = sh(
-                        script: '''
-                            aws sts get-caller-identity \
-                            --query Account \
-                            --output text
-                        ''',
-                        returnStdout: true
-                    ).trim()
-
-
-                    env.ECR_REGISTRY =
-                        "${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_REGION}.amazonaws.com"
-
-
-                    env.DOCKER_IMAGE =
-                        "${env.ECR_REGISTRY}/${env.ECR_REPOSITORY}:${env.IMAGE_TAG}"
-
-
-                    echo "AWS Account ID: ${env.AWS_ACCOUNT_ID}"
-
-                    echo "ECR Registry: ${env.ECR_REGISTRY}"
-
-                    echo "Docker Image: ${env.DOCKER_IMAGE}"
-
-                }
-
-            }
-
-        }
-
-
-        // =====================================================
-        // 3. RUN UNIT TESTS
-        // =====================================================
-
-        stage('Run Unit Tests') {
-
-            steps {
-
-                dir('application') {
-
-                    sh '''
-                        mvn clean test
-                    '''
-
-                }
-
-            }
-
-            post {
-
-                always {
-
-                    junit(
-                        testResults: 'application/target/surefire-reports/*.xml',
-                        allowEmptyResults: true
-                    )
-
-                }
-
-            }
-
-        }
-
-
-        // =====================================================
-        // 4. BUILD APPLICATION
-        // =====================================================
+        // =========================================
+        // STAGE 2: BUILD APPLICATION
+        // =========================================
 
         stage('Build Application') {
 
             steps {
 
+                echo '========================================='
+                echo 'Building Maven Application'
+                echo '========================================='
+
                 dir('application') {
 
                     sh '''
+                    set -e
+    
                         mvn clean package -DskipTests
-                    '''
-
+                '''
                 }
-
             }
 
+            post {
+
+                success {
+
+                    archiveArtifacts(
+                        artifacts: 'application/target/*.war',
+                        fingerprint: true
+                    )
+                }
+            }
         }
 
 
-        // =====================================================
-        // 5. SONARQUBE ANALYSIS
-        // =====================================================
+        // =========================================
+        // STAGE 3: UNIT TESTS
+        // =========================================
+
+        stage('Unit Tests') {
+
+            steps {
+
+                echo '========================================='
+                echo 'Running Unit Tests'
+                echo '========================================='
+
+                dir('application') {
+
+                    sh '''
+                        set -e
+
+                        mvn test -Djacoco.skip=true
+                    '''
+                }
+            }
+        }
+
+        // =========================================
+        // STAGE 4: OWASP DEPENDENCY CHECK
+        // =========================================
+
+        stage('OWASP Dependency Check') {
+            steps {
+                script {
+
+                    dependencyCheck(
+                        odcInstallation: 'dependency-checkk',
+                        additionalArguments: '--scan application --format XML --format HTML --noupdate'
+                    )
+
+                }
+            } 
+        }
 
         stage('SonarQube Analysis') {
 
             steps {
 
+            echo '========================================='
+            echo 'Running SonarQube Analysis'
+            echo '========================================='
+
+            withCredentials([
+                string(
+                    credentialsId: 'sonarqube-token',
+                    variable: 'SONAR_TOKEN'
+                )
+            ]) {
+
                 dir('application') {
 
-                    withSonarQubeEnv('SonarQube') {
+                    sh '''
+                        set -e
 
-                        sh '''
-                            mvn sonar:sonar \
-                            -Dsonar.projectKey=multicloud-devsecops \
-                            -Dsonar.projectName=multicloud-devsecops
-                        '''
-
-                    }
-
+                        sonar-scanner \
+                          -Dsonar.host.url=${SONAR_HOST_URL} \
+                          -Dsonar.token=${SONAR_TOKEN}
+                    '''
                 }
-
             }
-
         }
+    }
+        
 
-
-        // =====================================================
-        // 6. SONARQUBE QUALITY GATE
-        // =====================================================
-
-        stage('Quality Gate') {
-
-            steps {
-
-                timeout(
-                    time: 5,
-                    unit: 'MINUTES'
-                ) {
-
-                    waitForQualityGate(
-                        abortPipeline: true
-                    )
-
-                }
-
-            }
-
-        }
-
-
-        // =====================================================
-        // 7. TRIVY FILESYSTEM SCAN
-        // =====================================================
+        // =========================================
+        // STAGE 4: TRIVY FILESYSTEM SCAN
+        // =========================================
 
         stage('Trivy Filesystem Scan') {
 
             steps {
 
-                dir('application') {
+                echo '========================================='
+                echo 'Running Trivy Filesystem Security Scan'
+                echo '========================================='
 
-                    sh '''
-                        trivy fs \
-                        --exit-code 1 \
+                sh '''
+                    set -e
+
+                    trivy fs \
+                        --scanners vuln,secret \
                         --severity HIGH,CRITICAL \
-                        --ignore-unfixed \
+                        --exit-code 1 \
                         .
-                    '''
-
-                }
-
+                '''
             }
-
         }
+        
 
+        // =========================================
+            // STAGE 5: DOCKER BUILD
+        // =========================================
 
-        // =====================================================
-        // 8. DOCKER BUILD
-        // =====================================================
-
-        stage('Build Docker Image') {
+        stage('Docker Build') {
 
             steps {
 
+                echo '========================================='
+                echo 'Building Docker Image'
+                echo '========================================='
+
+                echo "Docker Image: ${IMAGE_NAME}:${IMAGE_TAG}"
+
                 dir('application') {
+    
+                    sh '''
+                        set -e
 
-                    sh """
+                        echo "Building image:"
+                        echo "${IMAGE_NAME}:${IMAGE_TAG}"
+
                         docker build \
-                        -t ${DOCKER_IMAGE} \
-                        .
-                    """
+                            -t ${IMAGE_NAME}:${IMAGE_TAG} \
+                            -t ${IMAGE_NAME}:latest \
+                            .
 
+                        echo "Docker image build completed successfully."
+
+                        echo "Verifying Docker images:"
+
+                        docker images | grep "${ECR_REPOSITORY}"
+                    '''
                 }
-
             }
-
         }
 
 
-        // =====================================================
-        // 9. TRIVY DOCKER IMAGE SCAN
-        // =====================================================
+        // =========================================
+        // STAGE 6: TRIVY IMAGE SCAN
+        // =========================================
 
         stage('Trivy Image Scan') {
 
             steps {
 
-                sh """
-                    trivy image \
-                    --exit-code 1 \
-                    --severity HIGH,CRITICAL \
-                    --ignore-unfixed \
-                    ${DOCKER_IMAGE}
-                """
+                echo '========================================='
+                echo 'Running Trivy Docker Image Scan'
+                echo '========================================='
 
+                echo "Image being scanned: ${IMAGE_NAME}:${IMAGE_TAG}"
+
+                sh '''
+                    set -e
+
+                    echo "Verifying image exists locally..."
+
+                    docker image inspect ${IMAGE_NAME}:${IMAGE_TAG} > /dev/null
+
+                    echo "Image found successfully."
+
+                    echo "Starting Trivy image vulnerability scan..."
+
+                    TRIVY_TMP="${WORKSPACE}/.trivy-tmp"
+                    
+                    mkdir -p "${TRIVY_TMP}"
+                    
+                    echo "Using Trivy temporary directory: ${TRIVY_TMP}"
+
+                    TMPDIR="${TRIVY_TMP}" trivy image \
+                        --scanners vuln \
+                        --severity HIGH,CRITICAL \
+                        --exit-code 1 \
+                        ${IMAGE_NAME}:${IMAGE_TAG}
+                        
+                    echo "Trivy image scan completed successfully."    
+                '''
             }
-
         }
 
 
-        // =====================================================
-        // 10. LOGIN TO AMAZON ECR
-        // =====================================================
+        // =========================================
+        // STAGE 7: LOGIN TO ECR
+        // =========================================
 
-        stage('Login to ECR') {
+        stage('Login to Amazon ECR') {
 
             steps {
 
-                sh """
+                echo '========================================='
+                echo 'Logging in to Amazon ECR'
+                echo '========================================='
+
+                sh '''
+                    set -e
+    
                     aws ecr get-login-password \
-                    --region ${AWS_REGION} | \
-                    docker login \
-                    --username AWS \
-                    --password-stdin \
-                    ${ECR_REGISTRY}
-                """
-
+                        --region ${AWS_REGION} \
+                    | docker login \
+                        --username AWS \
+                        --password-stdin ${ECR_REGISTRY}
+                '''
             }
-
         }
 
 
-        // =====================================================
-        // 11. PUSH IMAGE TO ECR
-        // =====================================================
+        // =========================================
+        // STAGE 8: PUSH IMAGE TO ECR
+        // =========================================
 
         stage('Push Image to ECR') {
 
             steps {
 
-                sh """
+                echo '========================================='
+                echo 'Pushing Docker Image to Amazon ECR'
+                echo '========================================='
 
-                    docker push \
-                    ${DOCKER_IMAGE}
+                sh '''
+                    set -e
 
-                """
+                    echo "Pushing versioned image:"
+                    echo "${IMAGE_NAME}:${IMAGE_TAG}"
 
+                    docker push ${IMAGE_NAME}:${IMAGE_TAG}
+
+                    echo "Pushing latest image:"
+                    echo "${IMAGE_NAME}:latest"
+
+                    docker push ${IMAGE_NAME}:latest
+
+                    echo "Docker images pushed successfully."
+                '''
             }
-
         }
 
 
-        // =====================================================
-        // 12. UPDATE EKS KUBECONFIG
-        // =====================================================
+        // =========================================
+        // STAGE 9: CONFIGURE EKS
+        // =========================================
 
-        stage('Configure EKS Access') {
+        stage('Configure EKS') {
 
             steps {
 
-                sh """
+                echo '========================================='
+                echo 'Configuring kubectl for Amazon EKS'
+                echo '========================================='
+
+                sh '''
+                    set -e
 
                     aws eks update-kubeconfig \
-                    --region ${AWS_REGION} \
-                    --name ${EKS_CLUSTER_NAME}
+                        --region ${AWS_REGION} \
+                        --name ${EKS_CLUSTER_NAME}
 
-                """
+                    echo "Verifying EKS cluster access..."
 
+                    kubectl get nodes
+                '''
             }
-
         }
 
 
-        // =====================================================
-        // 13. HELM LINT
-        // =====================================================
+        // =========================================
+        // STAGE 10: CREATE KUBERNETES NAMESPACE
+        // =========================================
 
-        stage('Helm Lint') {
+        stage('Create Kubernetes Namespace') {
 
             steps {
 
-                sh """
+                echo '========================================='
+                echo 'Creating Kubernetes Namespace'
+                echo '========================================='
 
-                    helm lint \
-                    ${HELM_CHART_PATH}
+                sh '''
+                    set -e
 
-                """
-
+                    kubectl apply \
+                        -f kubernetes/namespace.yaml
+                '''
             }
-
         }
 
 
-        // =====================================================
-        // 14. HELM DEPLOYMENT
-        // =====================================================
+        // =========================================
+        // STAGE 11: DEPLOY CONFIGURATION
+        // =========================================
 
-        stage('Deploy Application') {
+        stage('Deploy Application Configuration') {
 
             steps {
 
-                sh """
+                echo '========================================='
+                echo 'Deploying ConfigMap and Secret'
+                echo '========================================='
 
-                    helm upgrade --install \
-                    ${HELM_RELEASE_NAME} \
-                    ${HELM_CHART_PATH} \
-                    --namespace ${KUBERNETES_NAMESPACE} \
-                    --create-namespace \
-                    --set image.repository=${ECR_REGISTRY}/${ECR_REPOSITORY} \
-                    --set image.tag=${IMAGE_TAG} \
-                    --atomic \
-                    --timeout 5m
+                sh '''
+                    set -e
 
-                """
+                    kubectl apply \
+                    -f kubernetes/configmap.yaml
 
+                    kubectl apply \
+                    -f kubernetes/secret.yaml
+                '''
             }
-
         }
 
 
-        // =====================================================
-        // 15. VERIFY DEPLOYMENT
-        // =====================================================
+        // =========================================
+        // STAGE 12: DEPLOY APPLICATION
+        // =========================================
+
+        stage('Deploy Application to EKS') {
+
+            steps {
+
+                echo '========================================='
+                echo 'Deploying Application to Amazon EKS'
+                echo '========================================='
+
+                sh '''
+                    set -e
+
+                    kubectl apply \
+                    -f kubernetes/deployment.yaml
+
+                    kubectl apply \
+                    -f kubernetes/service.yaml
+                '''
+            }
+        }
+
+
+        // =========================================
+        // STAGE 13: UPDATE IMAGE
+        // =========================================
+
+        stage('Update Application Image') {
+
+            steps {
+
+                echo '========================================='
+                echo 'Updating Kubernetes Deployment Image'
+                echo '========================================='
+
+                echo "Updating deployment with image:"
+                echo "${IMAGE_NAME}:${IMAGE_TAG}"
+
+                sh '''
+                    set -e
+
+                    kubectl -n ${K8S_NAMESPACE} set image \
+                        deployment/${K8S_DEPLOYMENT_NAME} \
+                        ${K8S_CONTAINER_NAME}=${IMAGE_NAME}:${IMAGE_TAG}
+
+                    kubectl -n ${K8S_NAMESPACE} rollout status \
+                        deployment/${K8S_DEPLOYMENT_NAME} \
+                        --timeout=180s
+                '''
+            }
+        }
+
+
+        // =========================================
+        // STAGE 14: WAIT FOR ROLLOUT
+        // =========================================
+
+        stage('Wait for Deployment Rollout') {
+
+            steps {
+
+                echo '========================================='
+                echo 'Waiting for Kubernetes Deployment Rollout'
+                echo '========================================='
+
+                sh '''
+                    set -e
+
+                    kubectl -n ${K8S_NAMESPACE} rollout status \
+                        deployment/${K8S_DEPLOYMENT_NAME} \
+                        --timeout=180s
+                '''
+            }
+        }
+
+
+        // =========================================
+        // STAGE 15: VERIFY DEPLOYMENT
+        // =========================================
 
         stage('Verify Deployment') {
 
             steps {
 
-                sh """
+                echo '========================================='
+                echo 'Verifying Kubernetes Deployment'
+                echo '========================================='
 
-                    kubectl rollout status \
-                    deployment/${HELM_RELEASE_NAME} \
-                    --namespace ${KUBERNETES_NAMESPACE} \
-                    --timeout=5m
+                sh '''
+                    set -e
 
-                """
+                    echo "===== DEPLOYMENTS ====="
 
+                    kubectl -n ${K8S_NAMESPACE} \
+                    get deployments
+
+                    echo "===== PODS ====="
+
+                    kubectl -n ${K8S_NAMESPACE} \
+                        get pods -o wide
+
+                    echo "===== SERVICES ====="
+
+                    kubectl -n ${K8S_NAMESPACE} \
+                        get services
+    
+                    echo "===== DEPLOYMENT IMAGE ====="
+
+                    kubectl -n ${K8S_NAMESPACE} \
+                        get deployment ${K8S_DEPLOYMENT_NAME} \
+                        -o jsonpath='{.spec.template.spec.containers[0].image}'
+
+                    echo ""
+
+                    echo "===== EXPECTED IMAGE ====="
+    
+                    echo "${IMAGE_NAME}:${IMAGE_TAG}"
+                '''
             }
-
         }
-
     }
 
 
-    // =========================================================
+    // =========================================
     // POST ACTIONS
-    // =========================================================
+    // =========================================
 
     post {
 
-    success {
+        success {
 
-        echo '''
-        ==========================================
-        PIPELINE SUCCESSFUL
-        ==========================================
-        Application successfully built,
-        scanned, pushed to ECR and deployed
-        to Amazon EKS.
-        ==========================================
-        '''
+            echo '=============================================='
+            echo 'CI/CD PIPELINE COMPLETED SUCCESSFULLY'
+            echo '=============================================='
 
-        emailext(
-            subject: "SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-            body: """
-Hello,
+            echo "Docker Image: ${IMAGE_NAME}:${IMAGE_TAG}"
 
-The Jenkins pipeline completed successfully.
+            echo "EKS Cluster: ${EKS_CLUSTER_NAME}"
 
-Project:
-${env.JOB_NAME}
+            echo "Kubernetes Namespace: ${K8S_NAMESPACE}"
 
-Build Number:
-${env.BUILD_NUMBER}
+            echo "Kubernetes Deployment: ${K8S_DEPLOYMENT_NAME}"
 
-Build URL:
-${env.BUILD_URL}
+            echo "Kubernetes Service: ${K8S_SERVICE_NAME}"
+        }
 
-Environment:
-${params.ENVIRONMENT}
 
-Docker Image:
-${env.DOCKER_IMAGE}
+        failure {
 
-Status:
-SUCCESS
+            echo '=============================================='
+            echo 'CI/CD PIPELINE FAILED'
+            echo '=============================================='
 
-The application was successfully built,
-security scanned, pushed to Amazon ECR,
-and deployed to Amazon EKS.
+            echo "Image: ${IMAGE_NAME}:${IMAGE_TAG}"
 
-Regards,
-Jenkins
-            """,
-            to: "${NOTIFICATION_EMAIL}"
-        )
+            echo 'Please check the failed stage and Jenkins Console Output.'
+        }
 
+
+        always {
+
+            echo '=============================================='
+            echo 'Pipeline execution completed.'
+            echo '=============================================='
+        }
     }
-
-
-    failure {
-
-        echo '''
-        ==========================================
-        PIPELINE FAILED
-        ==========================================
-        Please review the Jenkins console output.
-        ==========================================
-        '''
-
-        emailext(
-            subject: "FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-            body: """
-Hello,
-
-The Jenkins pipeline has failed.
-
-Project:
-${env.JOB_NAME}
-
-Build Number:
-${env.BUILD_NUMBER}
-
-Build URL:
-${env.BUILD_URL}
-
-Environment:
-${params.ENVIRONMENT}
-
-Status:
-FAILED
-
-Please review the Jenkins console output
-to identify the failed stage.
-
-Regards,
-Jenkins
-            """,
-            to: "${NOTIFICATION_EMAIL}"
-        )
-
-    }
-
-
-    unstable {
-
-        emailext(
-            subject: "UNSTABLE: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-            body: """
-Hello,
-
-The Jenkins pipeline completed with an unstable status.
-
-Project:
-${env.JOB_NAME}
-
-Build Number:
-${env.BUILD_NUMBER}
-
-Build URL:
-${env.BUILD_URL}
-
-Please review the Jenkins console output.
-
-Regards,
-Jenkins
-            """,
-            to: "${NOTIFICATION_EMAIL}"
-        )
-
-    }
-
-
-    aborted {
-
-        emailext(
-            subject: "ABORTED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-            body: """
-Hello,
-
-The Jenkins pipeline was aborted.
-
-Project:
-${env.JOB_NAME}
-
-Build Number:
-${env.BUILD_NUMBER}
-
-Build URL:
-${env.BUILD_URL}
-
-Regards,
-Jenkins
-            """,
-            to: "${NOTIFICATION_EMAIL}"
-        )
-
-    }
-
-
-    always {
-
-        echo "Build Number: ${BUILD_NUMBER}"
-
-        echo "Build Result: ${currentBuild.currentResult}"
-
-    }
-
 }

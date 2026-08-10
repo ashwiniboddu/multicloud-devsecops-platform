@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+
+metadata:
+  name: {{ .Values.configMap.name }}
+  namespace: {{ .Release.Namespace }}
+
+  labels:
+    {{- include "application.labels" . | nindent 4 }}
+    project: multicloud-devsecops
+
+data:
+  SPRING_PROFILES_ACTIVE: {{ .Values.env.SPRING_PROFILES_ACTIVE | quote }}
+  SERVER_PORT: {{ .Values.env.SERVER_PORT | quote }}
