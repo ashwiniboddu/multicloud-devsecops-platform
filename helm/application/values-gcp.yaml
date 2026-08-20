@@ -1,12 +1,12 @@
 replicaCount: 2
 
 image:
-  repository: us-east1-docker.pkg.dev/playground-s-11-d5385d3b/multicloud-devsecops-dev-app/demo-workshop
+  repository: us-east1-docker.pkg.dev/playground-s-11-8111faea/multicloud-devsecops-dev-app/demo-workshop
   tag: "1.0"
   pullPolicy: IfNotPresent
 
 service:
-  type: LoadBalancer
+  type: NodePort
   port: 80
   targetPort: 8080
 
@@ -14,7 +14,6 @@ resources:
   requests:
     cpu: "100m"
     memory: "128Mi"
-
   limits:
     cpu: "250m"
     memory: "256Mi"
@@ -33,10 +32,16 @@ secretData:
   DATABASE_USERNAME: "admin"
   DATABASE_PASSWORD: "change-me"
 
-# Disable AWS ingress
 ingress:
-  enabled: false
+  enabled: true
+  className: gce
+  path: /
+  pathType: Prefix
+  annotations:
+    alb.ingress.kubernetes.io/scheme: null
+    alb.ingress.kubernetes.io/target-type: null
+    alb.ingress.kubernetes.io/listen-ports: null
+    kubernetes.io/ingress.class: gce
 
-# Enable GCP ingress when needed later
 gcpIngress:
-  enabled: false
+  enabled: true
