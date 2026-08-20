@@ -1,0 +1,16 @@
+ingress:
+  enabled: true
+  className: gce
+
+  annotations:
+    kubernetes.io/ingress.class: gce
+
+prometheus:
+  path: /prometheus
+  serviceName: kube-prometheus-stack-prometheus
+  servicePort: 9090
+
+grafana:
+  path: /
+  serviceName: kube-prometheus-stack-grafana
+  servicePort: 80

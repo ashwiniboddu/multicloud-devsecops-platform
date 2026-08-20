@@ -1,0 +1,35 @@
+grafana:
+  enabled: true
+
+  adminUser: admin
+
+  adminPassword: change-me
+
+  persistence:
+    enabled: true
+    size: 10Gi
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+    limits:
+      cpu: 250m
+      memory: 512Mi
+
+  service:
+    type: ClusterIP
+
+  ingress:
+    enabled: false
+
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      searchNamespace: ALL
+
+      provider:
+        foldersFromFilesStructure: true

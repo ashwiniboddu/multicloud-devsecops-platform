@@ -1,0 +1,18 @@
+ingress:
+  enabled: true
+  className: alb
+
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+
+prometheus:
+  path: /prometheus
+  serviceName: kube-prometheus-stack-prometheus
+  servicePort: 9090
+
+grafana:
+  path: /
+  serviceName: kube-prometheus-stack-grafana
+  servicePort: 80
