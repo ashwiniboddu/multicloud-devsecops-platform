@@ -27,7 +27,6 @@ secret:
 
 ingress:
   enabled: true
-
   className: alb
 
   annotations:
