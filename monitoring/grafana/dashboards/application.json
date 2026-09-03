@@ -13,7 +13,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "percent",
+          "unit": "percentunit",
           "min": 0
         },
         "overrides": []
@@ -25,12 +25,12 @@
         "y": 0
       },
       "id": 1,
-      "title": "Application CPU Usage",
+      "title": "Application Pod CPU Usage",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (namespace, pod) (rate(container_cpu_usage_seconds_total{container!=\"\",container!=\"POD\"}[5m])) * 100",
-          "legendFormat": "{{namespace}} / {{pod}}",
+          "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{namespace=\"application\",container!=\"\",container!=\"POD\"}[5m]))",
+          "legendFormat": "{{pod}}",
           "refId": "A"
         }
       ]
@@ -42,7 +42,8 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "bytes"
+          "unit": "bytes",
+          "min": 0
         },
         "overrides": []
       },
@@ -53,12 +54,70 @@
         "y": 0
       },
       "id": 2,
-      "title": "Application Memory Usage",
+      "title": "Application Pod Memory Usage",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (namespace, pod) (container_memory_working_set_bytes{container!=\"\",container!=\"POD\"})",
-          "legendFormat": "{{namespace}} / {{pod}}",
+          "expr": "sum by(pod) (container_memory_working_set_bytes{namespace=\"application\",container!=\"\",container!=\"POD\"})",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cores",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 3,
+      "title": "Total Application CPU Usage",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"application\",container!=\"\",container!=\"POD\"}[5m]))",
+          "legendFormat": "Application CPU",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 4,
+      "title": "Total Application Memory Usage",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(container_memory_working_set_bytes{namespace=\"application\",container!=\"\",container!=\"POD\"})",
+          "legendFormat": "Application Memory",
           "refId": "A"
         }
       ]
@@ -68,11 +127,29 @@
   "schemaVersion": 39,
   "tags": [
     "application",
-    "kubernetes",
+    "spring-boot",
     "devsecops"
   ],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {
+          "selected": true,
+          "text": "Prometheus",
+          "value": "prometheus"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "options": [],
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false
+      }
+    ]
   },
   "time": {
     "from": "now-1h",
