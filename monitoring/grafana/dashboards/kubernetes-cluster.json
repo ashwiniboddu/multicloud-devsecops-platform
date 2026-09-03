@@ -13,7 +13,9 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "percent"
+          "unit": "percent",
+          "min": 0,
+          "max": 100
         },
         "overrides": []
       },
@@ -24,7 +26,7 @@
         "y": 0
       },
       "id": 1,
-      "title": "Node CPU Usage",
+      "title": "Kubernetes Node CPU Usage",
       "type": "timeseries",
       "targets": [
         {
@@ -41,7 +43,8 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "percent"
+          "unit": "cores",
+          "min": 0
         },
         "overrides": []
       },
@@ -52,11 +55,11 @@
         "y": 0
       },
       "id": 2,
-      "title": "Node Memory Usage",
+      "title": "Kubernetes Node CPU Cores Used",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100",
+          "expr": "sum by(instance) (rate(node_cpu_seconds_total{mode!=\"idle\",mode!=\"iowait\",mode!=\"steal\"}[5m]))",
           "legendFormat": "{{instance}}",
           "refId": "A"
         }
@@ -69,7 +72,8 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "bytes"
+          "unit": "bytes",
+          "min": 0
         },
         "overrides": []
       },
@@ -80,11 +84,11 @@
         "y": 8
       },
       "id": 3,
-      "title": "Node Memory Available",
+      "title": "Kubernetes Node Memory Used",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "node_memory_MemAvailable_bytes",
+          "expr": "sum by(instance) (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes)",
           "legendFormat": "{{instance}}",
           "refId": "A"
         }
@@ -97,7 +101,8 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "unit": "bytes",
+          "min": 0
         },
         "overrides": []
       },
@@ -108,11 +113,11 @@
         "y": 8
       },
       "id": 4,
-      "title": "Node CPU Cores",
+      "title": "Kubernetes Node Memory Available",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "count by(instance) (node_cpu_seconds_total{mode=\"idle\"})",
+          "expr": "sum by(instance) (node_memory_MemAvailable_bytes)",
           "legendFormat": "{{instance}}",
           "refId": "A"
         }
@@ -124,10 +129,28 @@
   "tags": [
     "kubernetes",
     "cluster",
-    "infrastructure"
+    "devsecops"
   ],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {
+          "selected": true,
+          "text": "Prometheus",
+          "value": "prometheus"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "options": [],
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false
+      }
+    ]
   },
   "time": {
     "from": "now-1h",
