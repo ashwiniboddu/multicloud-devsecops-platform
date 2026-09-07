@@ -1,5 +1,4 @@
 grafana:
-
   enabled: true
 
   adminUser: admin
@@ -12,7 +11,6 @@ grafana:
     size: 10Gi
 
   resources:
-
     requests:
       cpu: 100m
       memory: 256Mi
@@ -28,15 +26,11 @@ grafana:
     enabled: false
 
   sidecar:
-
     dashboards:
       enabled: true
-
       label: grafana_dashboard
-
       labelValue: "1"
-
       searchNamespace: ALL
 
       provider:
-        foldersFromFilesStructure
+        foldersFromFilesStructure: true
