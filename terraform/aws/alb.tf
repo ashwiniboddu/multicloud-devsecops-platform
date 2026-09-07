@@ -31,7 +31,7 @@ resource "aws_lb" "main" {
 
 resource "aws_lb_target_group" "jenkins" {
 
-  name = "mc-${var.environment_name}-jenkins-tg"
+  name = "mc-jenkins-tg"
 
   port = 8080
 

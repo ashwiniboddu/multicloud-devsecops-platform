@@ -174,6 +174,10 @@ pipeline {
             } 
         }
 
+        // =========================================
+        // STAGE 5: OWASP DEPENDENCY CHECK
+        // =========================================
+
         stage('SonarQube Analysis') {
 
             steps {
@@ -205,7 +209,7 @@ pipeline {
         
 
         // =========================================
-        // STAGE 4: TRIVY FILESYSTEM SCAN
+        // STAGE 6: TRIVY FILESYSTEM SCAN
         // =========================================
 
         stage('Trivy Filesystem Scan') {
@@ -230,7 +234,7 @@ pipeline {
         
 
         // =========================================
-            // STAGE 5: DOCKER BUILD
+        // STAGE 7: DOCKER BUILD
         // =========================================
 
         stage('Docker Build') {
@@ -268,7 +272,7 @@ pipeline {
 
 
         // =========================================
-        // STAGE 6: TRIVY IMAGE SCAN
+        // STAGE 8: TRIVY IMAGE SCAN
         // =========================================
 
         stage('Trivy Image Scan') {
@@ -311,7 +315,7 @@ pipeline {
 
 
         // =========================================
-        // STAGE 7: LOGIN TO ECR
+        // STAGE 9: LOGIN TO ECR
         // =========================================
 
         stage('Login to Amazon ECR') {
@@ -336,7 +340,7 @@ pipeline {
 
 
         // =========================================
-        // STAGE 8: PUSH IMAGE TO ECR
+        // STAGE 10: PUSH IMAGE TO ECR
         // =========================================
 
         stage('Push Image to ECR') {
@@ -367,7 +371,7 @@ pipeline {
 
 
         // =========================================
-        // STAGE 9: CONFIGURE EKS
+        // STAGE 11: CONFIGURE EKS
         // =========================================
 
         stage('Configure EKS') {
@@ -393,7 +397,7 @@ pipeline {
         }
 
         // =========================================
-        // STAGE 10: HELM VALIDATION
+        // STAGE 12: HELM VALIDATION
         // =========================================
 
         stage('Validate Helm Chart') {
@@ -421,7 +425,7 @@ pipeline {
 
 
         // =========================================
-        // STAGE 11: HELM DEPLOY APPLICATION
+        // STAGE 13: HELM DEPLOY APPLICATION
         // =========================================
 
         stage('Deploy Application with Helm') {
@@ -453,7 +457,7 @@ pipeline {
 
 
         // =========================================
-        // STAGE 12: VERIFY HELM ROLLOUT
+        // STAGE 14: VERIFY HELM ROLLOUT
         // =========================================
 
         stage('Verify Helm Rollout') {
@@ -478,7 +482,7 @@ pipeline {
 
 
         // =========================================
-        // STAGE 13: VERIFY APPLICATION
+        // STAGE 15: VERIFY APPLICATION
         // =========================================
 
         stage('Verify Application') {
@@ -578,7 +582,7 @@ pipeline {
         }
 
         // =========================================
-        // STAGE: CREATE MONITORING NAMESPACE
+        // STAGE 16: CREATE MONITORING NAMESPACE
         // =========================================
 
         stage('Create Monitoring Namespace') {
@@ -599,7 +603,7 @@ pipeline {
         }
 
         // =========================================
-        // STAGE: CONFIGURE MONITORING HELM REPOSITORY
+        // STAGE 17: CONFIGURE MONITORING HELM REPOSITORY
         // =========================================
 
         stage('Configure Monitoring Helm Repository') {
@@ -625,7 +629,7 @@ pipeline {
         }
 
         // =========================================
-        // STAGE: VALIDATE MONITORING HELM
+        // STAGE 18: VALIDATE MONITORING HELM
         // =========================================
 
         stage('Validate Monitoring Helm') {
@@ -653,7 +657,7 @@ pipeline {
         }   
 
         // =========================================
-        // STAGE: DEPLOY PROMETHEUS AND GRAFANA
+        // STAGE 19: DEPLOY PROMETHEUS AND GRAFANA
         // =========================================
 
         stage('Deploy Monitoring Stack') {  
@@ -682,7 +686,7 @@ pipeline {
         }  
 
         // =========================================
-        // STAGE: DEPLOY GRAFANA DASHBOARDS
+        // STAGE 20: DEPLOY GRAFANA DASHBOARDS
         // =========================================
 
         stage('Deploy Grafana Dashboards') {
@@ -712,7 +716,7 @@ pipeline {
         }
 
         // =========================================
-        // STAGE: DEPLOY MONITORING INGRESS
+        // STAGE 21: DEPLOY MONITORING INGRESS
         // =========================================
 
         stage('Deploy Monitoring Ingress') {       
@@ -736,7 +740,7 @@ pipeline {
         }
 
         // =========================================
-        // STAGE: WAIT FOR MONITORING
+        // STAGE 22: WAIT FOR MONITORING
         // =========================================
 
         stage('Wait for Monitoring') {
@@ -763,7 +767,7 @@ pipeline {
         }
 
         // =========================================
-        // STAGE: VERIFY MONITORING
+        // STAGE 23: VERIFY MONITORING
         // =========================================
 
         stage('Verify Monitoring') {

@@ -4,12 +4,11 @@
 
 locals {
 
-  project_prefix = "${var.project_name}-${var.environment_name}"
+  project_prefix = "${var.project_name}"
 
   common_tags = {
 
     Project     = var.project_name
-    Environment = var.environment_name
     ManagedBy   = "Terraform"
 
   }
