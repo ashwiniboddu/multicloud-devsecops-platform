@@ -1,0 +1,38 @@
+edition: developer
+
+replicaCount: 1
+
+monitoringPasscode: "CHANGE_THIS_PASSWORD"
+
+persistence:
+  enabled: true
+  accessMode: ReadWriteOnce
+  size: 10Gi
+  storageClass: ""
+
+resources:
+
+  requests:
+    cpu: 500m
+    memory: 2Gi
+
+  limits:
+    cpu: 1
+    memory: 4Gi
+
+postgresql:
+  enabled: true
+
+  auth:
+    database: sonarqube
+    username: sonar
+    password: "sonar-password"
+
+  primary:
+    persistence:
+      enabled: true
+      size: 5Gi
+
+service:
+  type: ClusterIP
+  port: 9000

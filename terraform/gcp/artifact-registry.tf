@@ -1,8 +1,11 @@
-resource "google_artifact_registry_repository" "application" {
-  location      = var.region
-  repository_id = "${local.project_name}-${var.environment}-app"
-  description   = "Docker repository for ${local.project_name}"
-  format        = "DOCKER"
+resource "google_artifact_registry_repository" "docker" {
+  location      = var.artifact_registry_location
+  repository_id = var.artifact_registry_repository
 
-  project = var.project_id
+  description = "Multicloud DevSecOps Docker Repository"
+  format      = "DOCKER"
+
+  depends_on = [
+    google_project_service.artifact_registry
+  ]
 }

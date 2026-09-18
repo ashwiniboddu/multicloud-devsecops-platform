@@ -1,7 +1,15 @@
 pipeline {
 
-
     agent any
+
+    parameters {
+
+        choice(
+            name: 'CLOUD_PROVIDER',
+            choices: ['AWS', 'GCP'],
+            description: 'Select the cloud provider to deploy to'
+        )
+    }
 
     options {
         disableConcurrentBuilds()
@@ -11,98 +19,156 @@ pipeline {
 
     environment {
 
-        // =========================================
-        // AWS CONFIGURATION
-        // =========================================
+        // =========================================================
+        // COMMON CONFIGURATION
+        // =========================================================
 
-        AWS_REGION = 'us-east-1'
-        AWS_ACCOUNT_ID = '554074174392'
-
-        SONAR_HOST_URL = 'http://k8s-sonarqub-sonarqub-f49b8c3dc8-37370543.us-east-1.elb.amazonaws.com'
-
-        SONAR_TOKEN = 'sonarqube-token'
-        
-        
-
-
-        // =========================================
-        // ECR CONFIGURATION
-        // =========================================
-
-        ECR_REPOSITORY = 'multicloud-devsecops-dev-app'
-
-        ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-
-
-        // =========================================
-        // DOCKER IMAGE CONFIGURATION
-        // =========================================
-
-        IMAGE_NAME = "${ECR_REGISTRY}/${ECR_REPOSITORY}"
-
-        IMAGE_TAG = "${BUILD_NUMBER}"
-
-
-        // =========================================
-        // EKS CONFIGURATION
-        // =========================================
-
-        EKS_CLUSTER_NAME = 'multicloud-devsecops-dev-eks'
-
-
-        // =========================================
-        // KUBERNETES CONFIGURATION
-        // =========================================
+        GITHUB_REPO = 'https://github.com/ashwiniboddu/multicloud-devsecops-platform.git'
 
         K8S_NAMESPACE = 'application'
-
         K8S_DEPLOYMENT_NAME = 'application'
-
         K8S_CONTAINER_NAME = 'application'
-
         K8S_SERVICE_NAME = 'application-service'
 
-        // =========================================
-        // HELM CONFIGURATION
-        // =========================================
-
         HELM_RELEASE_NAME = 'application'
-
         HELM_CHART_PATH = 'helm/application'
-
         HELM_NAMESPACE = 'application'
 
+        MONITORING_NAMESPACE = 'monitoring'
+        PROMETHEUS_RELEASE = 'kube-prometheus-stack'
+
+        APP_NAME = 'multicloud-devsecops'
+        APP_NAMESPACE = 'application'
+
+
+        // =========================================================
+        // AWS CONFIGURATION
+        // =========================================================
+
+        AWS_REGION = 'us-east-1'
+        AWS_ACCOUNT_ID = '934639816492'
+
+        AWS_ECR_REPOSITORY = 'multicloud-devsecops-dev-app'
+
+        AWS_ECR_REGISTRY =
+            "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+        AWS_IMAGE_NAME =
+            "${AWS_ECR_REGISTRY}/${AWS_ECR_REPOSITORY}"
+
+        AWS_EKS_CLUSTER_NAME =
+            'multicloud-devsecops-dev-eks'
+
+
+        // =========================================================
+        // GCP CONFIGURATION
+        // =========================================================
+
+        GCP_REGION = 'us-east1'
+
+        GCP_PROJECT_ID =
+            'playground-s-11-bfa7194e'
+
+        GCP_SERVICE_ACCOUNT =
+            'multicloud-devsecops-jenkins@playground-s-11-bfa7194e.iam.gserviceaccount.com'
+
+        GCP_ARTIFACT_REGISTRY_REPOSITORY =
+            'multicloud-devsecops'
+
+        GCP_ARTIFACT_REGISTRY =
+            "${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}"
+
+        GCP_IMAGE_NAME =
+            "${GCP_ARTIFACT_REGISTRY}/${GCP_ARTIFACT_REGISTRY_REPOSITORY}/multicloud-devsecops"
+
+        GCP_GKE_CLUSTER_NAME =
+            'multicloud-devsecops-gke'
+
+
+        // =========================================================
+        // SONARQUBE
+        // =========================================================
+
+        AWS_SONAR_HOST_URL =
+            'http://k8s-sonarqub-sonarqub-212bae675f-1549854921.us-east-1.elb.amazonaws.com'
+
+        GCP_SONAR_HOST_URL =
+            'http://34.120.58.247'
+
+
+        // =========================================================
+        // BUILD IMAGE
+        // =========================================================
+
+        IMAGE_TAG = "${BUILD_NUMBER}"
     }
 
 
     stages {
 
 
-        // =========================================
-        // STAGE 1: CHECKOUT
-        // =========================================
-    
+        // =========================================================
+        // 1. CHECKOUT
+        // =========================================================
+
         stage('Checkout') {
 
             steps {
 
                 echo '========================================='
-                echo 'Checking out source code from GitHub'
+                echo 'Checking out source code'
                 echo '========================================='
 
                 git(
                     branch: 'main',
-                    url: 'https://github.com/ashwiniboddu/multicloud-devsecops-platform.git'
+                    url: "${GITHUB_REPO}"
                 )
             }
         }
 
 
-        // =========================================
-        // STAGE 2: BUILD APPLICATION
-        // =========================================
+        // =========================================================
+        // 2. SET CLOUD IMAGE
+        // =========================================================
 
-        stage('Build Application') {
+        stage('Configure Cloud Variables') {
+
+            steps {
+
+                script {
+
+                    if (params.CLOUD_PROVIDER == 'AWS') {
+
+                        env.IMAGE_NAME =
+                            env.AWS_IMAGE_NAME
+
+                        env.SONAR_HOST_URL =
+                            env.AWS_SONAR_HOST_URL
+
+                        echo "Selected Cloud Provider: AWS"
+                        echo "Image: ${env.IMAGE_NAME}:${env.IMAGE_TAG}"
+
+                    } else {
+
+                        env.IMAGE_NAME =
+                            env.GCP_IMAGE_NAME
+
+                        env.SONAR_HOST_URL =
+                            env.GCP_SONAR_HOST_URL
+
+                        echo "Selected Cloud Provider: GCP"
+                        echo "Image: ${env.IMAGE_NAME}:${env.IMAGE_TAG}"
+                    }
+                }
+            }
+        }
+
+
+        // =========================================================
+        // 3. MAVEN BUILD
+        // =========================================================
+
+        stage('Maven Build') {
 
             steps {
 
@@ -113,10 +179,10 @@ pipeline {
                 dir('application') {
 
                     sh '''
-                    set -e
-    
+                        set -e
+
                         mvn clean package -DskipTests
-                '''
+                    '''
                 }
             }
 
@@ -133,9 +199,9 @@ pipeline {
         }
 
 
-        // =========================================
-        // STAGE 3: UNIT TESTS
-        // =========================================
+        // =========================================================
+        // 4. UNIT TESTS
+        // =========================================================
 
         stage('Unit Tests') {
 
@@ -156,68 +222,79 @@ pipeline {
             }
         }
 
-        // =========================================
-        // STAGE 4: OWASP DEPENDENCY CHECK
-        // =========================================
+
+        // =========================================================
+        // 5. OWASP DEPENDENCY CHECK
+        // =========================================================
 
         stage('OWASP Dependency Check') {
+
             steps {
+
+                echo '========================================='
+                echo 'OWASP Dependency Check'
+                echo '========================================='
+
                 dependencyCheck(
+
                     odcInstallation: 'dependency-checkk',
+
                     nvdCredentialsId: 'nvd-api-key',
+
                     additionalArguments: '''
                         --scan application
                         --disableYarnAudit
                         --disableNodeAudit
-                        '''
+                    '''
                 )
-            } 
+            }
         }
 
-        // =========================================
-        // STAGE 5: OWASP DEPENDENCY CHECK
-        // =========================================
+
+        // =========================================================
+        // 6. SONARQUBE
+        // =========================================================
 
         stage('SonarQube Analysis') {
 
             steps {
 
-            echo '========================================='
-            echo 'Running SonarQube Analysis'
-            echo '========================================='
+                echo '========================================='
+                echo 'SonarQube Analysis'
+                echo '========================================='
 
-            withCredentials([
-                string(
-                    credentialsId: 'sonarqube-token',
-                    variable: 'SONAR_TOKEN'
-                )
-            ]) {
+                withCredentials([
+                    string(
+                        credentialsId: 'sonarqube-token',
+                        variable: 'SONAR_TOKEN'
+                    )
+                ]) {
 
-                dir('application') {
+                    dir('application') {
 
-                    sh '''
-                        set -e
+                        sh '''
+                            set -e
 
-                        sonar-scanner \
-                          -Dsonar.host.url=${SONAR_HOST_URL} \
-                          -Dsonar.token=${SONAR_TOKEN}
-                    '''
+                            sonar-scanner \
+                              -Dsonar.host.url=${SONAR_HOST_URL} \
+                              -Dsonar.token=${SONAR_TOKEN}
+                        '''
+                    }
                 }
             }
         }
-    }
-        
 
-        // =========================================
-        // STAGE 6: TRIVY FILESYSTEM SCAN
-        // =========================================
+
+        // =========================================================
+        // 7. TRIVY FILESYSTEM SCAN
+        // =========================================================
 
         stage('Trivy Filesystem Scan') {
 
             steps {
 
                 echo '========================================='
-                echo 'Running Trivy Filesystem Security Scan'
+                echo 'Trivy Filesystem Scan'
                 echo '========================================='
 
                 sh '''
@@ -227,392 +304,467 @@ pipeline {
                         --scanners vuln,secret \
                         --severity HIGH,CRITICAL \
                         --exit-code 1 \
+                        --no-progress \
                         .
                 '''
             }
         }
-        
 
-        // =========================================
-        // STAGE 7: DOCKER BUILD
-        // =========================================
+
+        // =========================================================
+        // 8. DOCKER BUILD
+        // =========================================================
 
         stage('Docker Build') {
 
             steps {
 
                 echo '========================================='
-                echo 'Building Docker Image'
+                echo 'Docker Build'
                 echo '========================================='
 
-                echo "Docker Image: ${IMAGE_NAME}:${IMAGE_TAG}"
-
                 dir('application') {
-    
+
                     sh '''
                         set -e
 
-                        echo "Building image:"
+                        echo "Building:"
                         echo "${IMAGE_NAME}:${IMAGE_TAG}"
 
                         docker build \
                             -t ${IMAGE_NAME}:${IMAGE_TAG} \
-                            -t ${IMAGE_NAME}:latest \
                             .
-
-                        echo "Docker image build completed successfully."
-
-                        echo "Verifying Docker images:"
-
-                        docker images | grep "${ECR_REPOSITORY}"
                     '''
                 }
             }
         }
 
 
-        // =========================================
-        // STAGE 8: TRIVY IMAGE SCAN
-        // =========================================
+        // =========================================================
+        // 9. TRIVY IMAGE SCAN
+        // =========================================================
 
         stage('Trivy Image Scan') {
 
             steps {
 
                 echo '========================================='
-                echo 'Running Trivy Docker Image Scan'
+                echo 'Trivy Docker Image Scan'
                 echo '========================================='
-
-                echo "Image being scanned: ${IMAGE_NAME}:${IMAGE_TAG}"
 
                 sh '''
                     set -e
 
-                    echo "Verifying image exists locally..."
+                    docker image inspect \
+                        ${IMAGE_NAME}:${IMAGE_TAG} \
+                        > /dev/null
 
-                    docker image inspect ${IMAGE_NAME}:${IMAGE_TAG} > /dev/null
-
-                    echo "Image found successfully."
-
-                    echo "Starting Trivy image vulnerability scan..."
-
-                    TRIVY_TMP="${WORKSPACE}/.trivy-tmp"
-                    
-                    mkdir -p "${TRIVY_TMP}"
-                    
-                    echo "Using Trivy temporary directory: ${TRIVY_TMP}"
-
-                    TMPDIR="${TRIVY_TMP}" trivy image \
+                    trivy image \
                         --scanners vuln \
                         --severity HIGH,CRITICAL \
                         --exit-code 1 \
+                        --no-progress \
                         ${IMAGE_NAME}:${IMAGE_TAG}
-                        
-                    echo "Trivy image scan completed successfully."    
                 '''
             }
         }
 
 
-        // =========================================
-        // STAGE 9: LOGIN TO ECR
-        // =========================================
+        // =========================================================
+        // ======================== AWS ============================
+        // =========================================================
 
-        stage('Login to Amazon ECR') {
+
+        // =========================================================
+        // 10A. AWS ECR LOGIN
+        // =========================================================
+
+        stage('AWS - Login to ECR') {
+
+            when {
+
+                expression {
+                    params.CLOUD_PROVIDER == 'AWS'
+                }
+            }
 
             steps {
 
-                echo '========================================='
-                echo 'Logging in to Amazon ECR'
-                echo '========================================='
-
                 sh '''
                     set -e
-    
+
                     aws ecr get-login-password \
-                        --region ${AWS_REGION} \
-                    | docker login \
+                        --region ${AWS_REGION} |
+                    docker login \
                         --username AWS \
-                        --password-stdin ${ECR_REGISTRY}
+                        --password-stdin ${AWS_ECR_REGISTRY}
                 '''
             }
         }
 
 
-        // =========================================
-        // STAGE 10: PUSH IMAGE TO ECR
-        // =========================================
+        // =========================================================
+        // 11A. AWS PUSH IMAGE
+        // =========================================================
 
-        stage('Push Image to ECR') {
+        stage('AWS - Push Image') {
+
+            when {
+
+                expression {
+                    params.CLOUD_PROVIDER == 'AWS'
+                }
+            }
 
             steps {
-
-                echo '========================================='
-                echo 'Pushing Docker Image to Amazon ECR'
-                echo '========================================='
 
                 sh '''
                     set -e
 
-                    echo "Pushing versioned image:"
-                    echo "${IMAGE_NAME}:${IMAGE_TAG}"
-
-                    docker push ${IMAGE_NAME}:${IMAGE_TAG}
-
-                    echo "Pushing latest image:"
-                    echo "${IMAGE_NAME}:latest"
-
-                    docker push ${IMAGE_NAME}:latest
-
-                    echo "Docker images pushed successfully."
+                    docker push \
+                        ${IMAGE_NAME}:${IMAGE_TAG}
                 '''
             }
         }
 
 
-        // =========================================
-        // STAGE 11: CONFIGURE EKS
-        // =========================================
+        // =========================================================
+        // 12A. AWS CONFIGURE EKS
+        // =========================================================
 
-        stage('Configure EKS') {
+        stage('AWS - Configure EKS') {
+
+            when {
+
+                expression {
+                    params.CLOUD_PROVIDER == 'AWS'
+                }
+            }
 
             steps {
-
-                echo '========================================='
-                echo 'Configuring kubectl for Amazon EKS'
-                echo '========================================='
 
                 sh '''
                     set -e
 
                     aws eks update-kubeconfig \
                         --region ${AWS_REGION} \
-                        --name ${EKS_CLUSTER_NAME}
-
-                    echo "Verifying EKS cluster access..."
+                        --name ${AWS_EKS_CLUSTER_NAME}
 
                     kubectl get nodes
                 '''
             }
         }
 
-        // =========================================
-        // STAGE 12: HELM VALIDATION
-        // =========================================
 
-        stage('Validate Helm Chart') {
-        
-            steps {
+        // =========================================================
+        // 13A. AWS DEPLOY APPLICATION
+        // =========================================================
 
-            echo '========================================='
-            echo 'Validating Helm Chart'
-            echo '========================================='
+        stage('AWS - Deploy Application') {
 
-            sh '''
-                set -e 
+            when {
 
-                echo "Helm version"
-                helm version
-
-                echo "Running Helm lint..."
-
-                helm lint ${HELM_CHART_PATH}
-
-                echo "Helm chart validation successful."
-              ''' 
+                expression {
+                    params.CLOUD_PROVIDER == 'AWS'
+                }
             }
-        }
-
-
-        // =========================================
-        // STAGE 13: HELM DEPLOY APPLICATION
-        // =========================================
-
-        stage('Deploy Application with Helm') {
 
             steps {
-
-                echo '========================================='
-                echo 'Deploying Application using Helm'
-                echo '========================================='
-
-                echo "Helm Release: ${HELM_RELEASE_NAME}"
-                echo "Helm Chart: ${HELM_CHART_PATH}"
-                echo "Namespace: ${HELM_NAMESPACE}"
-                echo "Image: ${IMAGE_NAME}:${IMAGE_TAG}"
 
                 sh '''
                     set -e
-                                                                           
-                    helm upgrade --install ${HELM_RELEASE_NAME} ${HELM_CHART_PATH} \
+
+                    helm upgrade --install \
+                        ${HELM_RELEASE_NAME} \
+                        ${HELM_CHART_PATH} \
                         --namespace ${HELM_NAMESPACE} \
                         --create-namespace \
                         --set image.repository=${IMAGE_NAME} \
                         --set image.tag=${IMAGE_TAG} \
-                       
-                    echo "Helm deployment completed."
+                        --wait \
+                        --timeout 10m
                 '''
             }
         }
 
 
-        // =========================================
-        // STAGE 14: VERIFY HELM ROLLOUT
-        // =========================================
+        // =========================================================
+        // 14A. AWS VERIFY APPLICATION
+        // =========================================================
 
-        stage('Verify Helm Rollout') {
+        stage('AWS - Verify Application') {
 
-            steps {
+            when {
 
-                echo '========================================='
-                echo 'Verifying Kubernetes Deployment Rollout'
-                echo '========================================='
-
-                sh '''
-                    set -e
-
-                    kubectl -n ${HELM_NAMESPACE} rollout status \
-                        deployment/${K8S_DEPLOYMENT_NAME} \
-                        --timeout=180s
-
-                    echo "Deployment rollout completed successfully."
-                '''
+                expression {
+                    params.CLOUD_PROVIDER == 'AWS'
+                }
             }
-        }
-
-
-        // =========================================
-        // STAGE 15: VERIFY APPLICATION
-        // =========================================
-
-        stage('Verify Application') {
 
             steps {
 
-                echo '========================================='
-                echo 'Verifying Application Deployment'
-                echo '========================================='
-
                 sh '''
                     set -e
-
-                    echo "===== HELM RELEASE ====="
-
-                    helm list \
-                        --namespace ${HELM_NAMESPACE}
-
-                    echo ""
-
-                    echo "===== DEPLOYMENTS ====="
 
                     kubectl -n ${HELM_NAMESPACE} \
-                        get deployments
-
-                    echo ""
-
-                    echo "===== PODS ====="
+                        rollout status \
+                        deployment/${K8S_DEPLOYMENT_NAME} \
+                        --timeout=180s
 
                     kubectl -n ${HELM_NAMESPACE} \
                         get pods -o wide
 
-                    echo ""
-
-                    echo "===== SERVICES ====="
-
-                    kubectl -n ${HELM_NAMESPACE} \
-                        get services
-
-                    echo ""
-
-                    echo "===== INGRESS ====="
-
-                    kubectl -n ${HELM_NAMESPACE} \
-                        get ingress
-
-                    echo ""
-
-                    echo "===== DEPLOYED IMAGE ====="
-
-                    DEPLOYED_IMAGE=$(kubectl -n ${HELM_NAMESPACE} \
+                    DEPLOYED_IMAGE=$(kubectl \
+                        -n ${HELM_NAMESPACE} \
                         get deployment ${K8S_DEPLOYMENT_NAME} \
                         -o jsonpath='{.spec.template.spec.containers[0].image}')
 
-
-                    echo "Deployed image:"
-                    echo "${DEPLOYED_IMAGE}"
-
-                    echo ""
-
-                    echo "===== EXPECTED IMAGE ====="
-
                     EXPECTED_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
-                    
-                    echo "Expected image:"
-                    echo "${EXPECTED_IMAGE}"
 
-                    echo ""
-                   
-                    echo "===== IMAGE VERIFICATION ====="
-                    
+                    echo "Deployed: ${DEPLOYED_IMAGE}"
+                    echo "Expected: ${EXPECTED_IMAGE}"
+
                     if [ "${DEPLOYED_IMAGE}" != "${EXPECTED_IMAGE}" ]; then
-                        echo "ERROR: Deployed image does not match expected image."
+                        echo "ERROR: Image mismatch"
                         exit 1
                     fi
 
-                    echo "SUCCESS: Deployed image matches expected image."
-
-                    echo ""
-
-                    echo "===== POD READINESS ====="
-                    
                     kubectl -n ${HELM_NAMESPACE} \
                         wait \
                         --for=condition=Ready \
                         pods \
                         --all \
                         --timeout=120s
-                    
-                    echo "SUCCESS: All application pods are Ready."
-
-                    echo ""
-
-                    echo "Application deployment verification completed successfully."
                 '''
             }
         }
 
-        // =========================================
-        // STAGE 16: CREATE MONITORING NAMESPACE
-        // =========================================
+
+        // =========================================================
+        // ======================== GCP ============================
+        // =========================================================
+
+
+        // =========================================================
+        // 10B. GCP AUTHENTICATION
+        // =========================================================
+
+        stage('GCP - Authentication') {
+
+            when {
+
+                expression {
+                    params.CLOUD_PROVIDER == 'GCP'
+                }
+            }
+
+            steps {
+
+                sh '''
+                    set -e
+
+                    gcloud config set project ${GCP_PROJECT_ID}
+
+                    gcloud config set account \
+                        ${GCP_SERVICE_ACCOUNT}
+
+                    gcloud config get-value project
+
+                    gcloud auth list
+                '''
+            }
+        }
+
+
+        // =========================================================
+        // 11B. GCP ARTIFACT REGISTRY LOGIN
+        // =========================================================
+
+        stage('GCP - Login to Artifact Registry') {
+
+            when {
+
+                expression {
+                    params.CLOUD_PROVIDER == 'GCP'
+                }
+            }
+
+            steps {
+
+                sh '''
+                    set -e
+
+                    gcloud auth print-access-token |
+                    docker login \
+                        -u oauth2accesstoken \
+                        --password-stdin \
+                        ${GCP_REGION}-docker.pkg.dev
+                '''
+            }
+        }
+
+
+        // =========================================================
+        // 12B. GCP PUSH IMAGE
+        // =========================================================
+
+        stage('GCP - Push Image') {
+
+            when {
+
+                expression {
+                    params.CLOUD_PROVIDER == 'GCP'
+                }
+            }
+
+            steps {
+
+                sh '''
+                    set -e
+
+                    docker push \
+                        ${IMAGE_NAME}:${IMAGE_TAG}
+                '''
+            }
+        }
+
+
+        // =========================================================
+        // 13B. GCP CONFIGURE GKE
+        // =========================================================
+
+        stage('GCP - Configure GKE') {
+
+            when {
+
+                expression {
+                    params.CLOUD_PROVIDER == 'GCP'
+                }
+            }
+
+            steps {
+
+                sh '''
+                    set -e
+
+                    kubectl get nodes
+                '''
+            }
+        }
+
+
+        // =========================================================
+        // 14B. GCP DEPLOY APPLICATION
+        // =========================================================
+
+        stage('GCP - Deploy Application') {
+
+            when {
+
+                expression {
+                    params.CLOUD_PROVIDER == 'GCP'
+                }
+            }
+
+            steps {
+
+                sh '''
+                    set -e
+
+                    helm upgrade --install \
+                        ${HELM_RELEASE_NAME} \
+                        ${HELM_CHART_PATH} \
+                        --namespace ${HELM_NAMESPACE} \
+                        --create-namespace \
+                        -f ${HELM_CHART_PATH}/values-gcp.yaml \
+                        --set image.repository=${IMAGE_NAME} \
+                        --set image.tag=${IMAGE_TAG} \
+                        --wait \
+                        --timeout 10m
+                '''
+            }
+        }
+
+
+        // =========================================================
+        // 15B. GCP VERIFY APPLICATION
+        // =========================================================
+
+        stage('GCP - Verify Application') {
+
+            when {
+
+                expression {
+                    params.CLOUD_PROVIDER == 'GCP'
+                }
+            }
+
+            steps {
+
+                sh '''
+                    set -e
+
+                    kubectl -n ${HELM_NAMESPACE} \
+                        rollout status \
+                        deployment/${K8S_DEPLOYMENT_NAME} \
+                        --timeout=180s
+
+                    kubectl -n ${HELM_NAMESPACE} \
+                        get pods -o wide
+
+                    DEPLOYED_IMAGE=$(kubectl \
+                        -n ${HELM_NAMESPACE} \
+                        get deployment ${K8S_DEPLOYMENT_NAME} \
+                        -o jsonpath='{.spec.template.spec.containers[0].image}')
+
+                    EXPECTED_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
+
+                    echo "Deployed: ${DEPLOYED_IMAGE}"
+                    echo "Expected: ${EXPECTED_IMAGE}"
+
+                    if [ "${DEPLOYED_IMAGE}" != "${EXPECTED_IMAGE}" ]; then
+                        echo "ERROR: Image mismatch"
+                        exit 1
+                    fi
+
+                    kubectl -n ${HELM_NAMESPACE} \
+                        wait \
+                        --for=condition=Ready \
+                        pods \
+                        --all \
+                        --timeout=120s
+                '''
+            }
+        }
+
+
+        // =========================================================
+        // 16. CREATE MONITORING NAMESPACE
+        // =========================================================
 
         stage('Create Monitoring Namespace') {
 
             steps {
-
-                echo '========================================='
-                echo 'Creating Monitoring Namespace'
-                echo '========================================='
 
                 sh '''
                     set -e
 
                     kubectl apply \
                         -f monitoring/namespace.yaml
+
+                    echo "Monitoring namespace ready."
                 '''
             }
         }
 
-        // =========================================
-        // STAGE 17: CONFIGURE MONITORING HELM REPOSITORY
-        // =========================================
+
+        // =========================================================
+        // 17. MONITORING HELM REPOSITORY
+        // =========================================================
 
         stage('Configure Monitoring Helm Repository') {
 
             steps {
-
-                echo '========================================='
-                echo 'Configuring Prometheus Community Helm Repository'
-                echo '========================================='
 
                 sh '''
                     set -e
@@ -622,258 +774,293 @@ pipeline {
                         --force-update
 
                     helm repo update
-
-                    echo "Prometheus Community Helm repository configured successfully."
                 '''
             }
         }
 
-        // =========================================
-        // STAGE 18: VALIDATE MONITORING HELM
-        // =========================================
+
+        // =========================================================
+        // 18. VALIDATE MONITORING
+        // =========================================================
 
         stage('Validate Monitoring Helm') {
 
             steps {
 
-               echo '========================================='
-               echo 'Validating Monitoring Helm Configuration'
-               echo '========================================='
-
-                sh ''' 
+                sh '''
                     set -e
 
-                    helm template monitoring prometheus-community/kube-prometheus-stack \
-                        --namespace monitoring \
-                        -f monitoring/prometheus/values.yaml \
-                        > /tmp/monitoring-rendered.yaml
-                        
+                    if [ "${CLOUD_PROVIDER}" = "AWS" ]; then
+
+                        helm template \
+                            ${PROMETHEUS_RELEASE} \
+                            prometheus-community/kube-prometheus-stack \
+                            --namespace ${MONITORING_NAMESPACE} \
+                            -f monitoring/prometheus/values.yaml \
+                            -f monitoring/grafana/values.yaml \
+                            > /tmp/monitoring-rendered.yaml
+
+                    else
+
+                        helm template \
+                            ${PROMETHEUS_RELEASE} \
+                            prometheus-community/kube-prometheus-stack \
+                            --namespace ${MONITORING_NAMESPACE} \
+                            -f monitoring/prometheus/values.yaml \
+                            -f monitoring/grafana/values-gcp.yaml \
+                            > /tmp/monitoring-rendered.yaml
+
+                    fi
+
+                    test -s /tmp/monitoring-rendered.yaml
+
                     echo "Monitoring Helm validation successful."
-
-                    echo "Rendered resources:"
-                    grep '^kind:' /tmp/monitoring-rendered.yaml | sort | uniq -c
                 '''
-            } 
-        }   
+            }
+        }
 
-        // =========================================
-        // STAGE 19: DEPLOY PROMETHEUS AND GRAFANA
-        // =========================================
 
-        stage('Deploy Monitoring Stack') {  
+        // =========================================================
+        // 19. DEPLOY MONITORING STACK
+        // =========================================================
+
+        stage('Deploy Monitoring Stack') {
 
             steps {
-
-                echo '========================================='
-                echo 'Deploying Prometheus and Grafana'
-                echo '========================================='
 
                 sh '''
                     set -e
 
-                    helm upgrade --install kube-prometheus-stack \
-                        prometheus-community/kube-prometheus-stack \
-                        --namespace monitoring \
-                        --create-namespace \
-                        -f monitoring/prometheus/values.yaml \
-                        -f monitoring/grafana/values.yaml \
-                        --wait \
-                        --timeout 10m
+                    if [ "${CLOUD_PROVIDER}" = "AWS" ]; then
 
-                    echo "Prometheus and Grafana deployment completed."
+                        helm upgrade --install \
+                            ${PROMETHEUS_RELEASE} \
+                            prometheus-community/kube-prometheus-stack \
+                            --namespace ${MONITORING_NAMESPACE} \
+                            --create-namespace \
+                            -f monitoring/prometheus/values.yaml \
+                            -f monitoring/grafana/values.yaml \
+                            --wait \
+                            --timeout 15m
+
+                    else
+
+                        helm upgrade --install \
+                            ${PROMETHEUS_RELEASE} \
+                            prometheus-community/kube-prometheus-stack \
+                            --namespace ${MONITORING_NAMESPACE} \
+                            --create-namespace \
+                            -f monitoring/prometheus/values.yaml \
+                            -f monitoring/grafana/values-gcp.yaml \
+                            --wait \
+                            --timeout 15m
+
+                    fi
                 '''
             }
-        }  
+        }
 
-        // =========================================
-        // STAGE 20: DEPLOY GRAFANA DASHBOARDS
-        // =========================================
+
+        // =========================================================
+        // 20. DEPLOY GRAFANA DASHBOARDS
+        // =========================================================
 
         stage('Deploy Grafana Dashboards') {
 
             steps {
 
-                echo '========================================='
-                echo 'Deploying Grafana Dashboards'
-                echo '========================================='
-
                 sh '''
                     set -e
 
-                    kubectl create configmap grafana-dashboards \
-                        --from-file=monitoring/grafana/dashboards/ \
-                        --namespace monitoring \
-                        --dry-run=client \
-                        -o yaml \
-                        | kubectl label --local -f - \
-                            grafana_dashboard=1 \
-                            -o yaml \
-                        | kubectl apply -f -
+                    echo "Deploying Grafana dashboards..."
+
+                    kubectl apply \
+                        -f monitoring/grafana/dashboards-configmap.yaml
+
+                    echo "Grafana dashboard ConfigMap:"
+
+                    kubectl get configmap \
+                        grafana-dashboards \
+                        -n ${MONITORING_NAMESPACE}
 
                     echo "Grafana dashboards deployed successfully."
                 '''
             }
         }
 
-        // =========================================
-        // STAGE 21: DEPLOY MONITORING INGRESS
-        // =========================================
 
-        stage('Deploy Monitoring Ingress') {       
+        // =========================================================
+        // 21. MONITORING INGRESS
+        // =========================================================
+
+        stage('Deploy Monitoring Ingress') {
 
             steps {
 
-                echo '========================================='
-                echo 'Deploying Monitoring Ingress'
-                echo '========================================='
-
-                sh '''    
-                     
+                sh '''
                     set -e
 
-                    kubectl apply \
-                        -f monitoring/ingress.yaml
+                    if [ "${CLOUD_PROVIDER}" = "AWS" ]; then
 
-                    echo "Monitoring ingress deployed successfully."
+                        kubectl apply \
+                            -f monitoring/ingress.yaml
+
+                    else
+
+                        helm template \
+                            monitoring-ingress \
+                            monitoring \
+                            --namespace ${MONITORING_NAMESPACE} \
+                            -f monitoring/values-gcp.yaml \
+                            --show-only templates/ingress.yaml |
+                        kubectl apply -f -
+
+                    fi
                 '''
             }
         }
 
-        // =========================================
-        // STAGE 22: WAIT FOR MONITORING
-        // =========================================
+
+        // =========================================================
+        // 22. WAIT FOR MONITORING
+        // =========================================================
 
         stage('Wait for Monitoring') {
 
-            steps {     
-
-                echo '========================================='
-                echo 'Waiting for Monitoring Components'
-                echo '========================================='
+            steps {
 
                 sh '''
                     set -e
 
                     kubectl wait \
                         --for=condition=Ready \
-                        pods \
-                        --all \
-                        -n monitoring \
-                        --timeout=600s
+                        pod \
+                        -l app.kubernetes.io/name=grafana \
+                        -n ${MONITORING_NAMESPACE} \
+                        --timeout=10m
 
-                    echo "All monitoring pods are ready."
+                    kubectl get pods \
+                        -n ${MONITORING_NAMESPACE}
                 '''
-            }    
+            }
         }
 
-        // =========================================
-        // STAGE 23: VERIFY MONITORING
-        // =========================================
+
+        // =========================================================
+        // 23. VERIFY MONITORING
+        // =========================================================
 
         stage('Verify Monitoring') {
 
             steps {
 
-                echo '========================================='
-                echo 'Verifying Monitoring Stack'
-                echo '========================================='
-
                 sh '''
-                    
                     set -e
-
-                    echo "===== HELM RELEASE ====="
-
-                    helm list \
-                        --namespace monitoring
-
-                    echo ""
 
                     echo "===== MONITORING PODS ====="
 
                     kubectl get pods \
-                        -n monitoring \
+                        -n ${MONITORING_NAMESPACE} \
                         -o wide
 
                     echo ""
 
-                    echo "===== SERVICES ====="
+                    echo "===== MONITORING SERVICES ====="
 
                     kubectl get services \
-                        -n monitoring
+                        -n ${MONITORING_NAMESPACE}
+
+                    echo ""
+
+                    echo "===== GRAFANA ====="
+
+                    kubectl get pods \
+                        -n ${MONITORING_NAMESPACE} \
+                        -l app.kubernetes.io/name=grafana
 
                     echo ""
 
                     echo "===== PROMETHEUS ====="
 
-                    kubectl get prometheus \
-                        -n monitoring
+                    kubectl get pods \
+                        -n ${MONITORING_NAMESPACE} \
+                        -l app.kubernetes.io/name=prometheus
 
                     echo ""
 
-                    echo "===== GRAFANA DASHBOARDS ====="
+                    echo "===== DASHBOARDS ====="
 
                     kubectl get configmaps \
-                        -n monitoring \
+                        -n ${MONITORING_NAMESPACE} \
                         -l grafana_dashboard=1
 
                     echo ""
 
-                    echo "===== MONITORING INGRESS ====="
+                    echo "===== INGRESS ====="
 
                     kubectl get ingress \
-                        -n monitoring
-
-                    echo ""
-
-                    echo "Monitoring verification completed successfully."
+                        -n ${MONITORING_NAMESPACE}
                 '''
-            }    
+            }
         }
     }
 
 
-    // =========================================
+    // =============================================================
     // POST ACTIONS
-    // =========================================
+    // =============================================================
 
     post {
 
         success {
 
-            echo '=============================================='
-            echo 'CI/CD PIPELINE COMPLETED SUCCESSFULLY'
-            echo '=============================================='
+            echo """
+=========================================================
+CI/CD PIPELINE SUCCESSFUL
+=========================================================
 
-            echo "Docker Image: ${IMAGE_NAME}:${IMAGE_TAG}"
+Cloud Provider:
+${CLOUD_PROVIDER}
 
-            echo "EKS Cluster: ${EKS_CLUSTER_NAME}"
+Application:
+${APP_NAME}
 
-            echo "Kubernetes Namespace: ${K8S_NAMESPACE}"
+Namespace:
+${APP_NAMESPACE}
 
-            echo "Kubernetes Deployment: ${K8S_DEPLOYMENT_NAME}"
+Docker Image:
+${IMAGE_NAME}:${IMAGE_TAG}
 
-            echo "Kubernetes Service: ${K8S_SERVICE_NAME}"
+Monitoring:
+${MONITORING_NAMESPACE}
+
+=========================================================
+"""
         }
-
 
         failure {
 
-            echo '=============================================='
-            echo 'CI/CD PIPELINE FAILED'
-            echo '=============================================='
+            echo """
+=========================================================
+CI/CD PIPELINE FAILED
+=========================================================
 
-            echo "Image: ${IMAGE_NAME}:${IMAGE_TAG}"
+Cloud Provider:
+${CLOUD_PROVIDER}
 
-            echo 'Please check the failed stage and Jenkins Console Output.'
+Check the failed stage and Jenkins console output.
+
+=========================================================
+"""
         }
-
 
         always {
 
-            echo '=============================================='
             echo 'Pipeline execution completed.'
-            echo '=============================================='
+
+            sh '''
+                docker image prune -f || true
+            '''
         }
     }
 }

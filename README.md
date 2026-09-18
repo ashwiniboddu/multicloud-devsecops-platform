@@ -1,274 +1,577 @@
-# Multi-Cloud DevSecOps Platform
+Multi-Cloud DevSecOps Platform
 
-A multi-cloud DevSecOps project using one parameterized Jenkins pipeline
-to build, test, scan, containerize, and deploy a Spring Boot application
-to **AWS EKS** or **GKE**.
+A multi-cloud DevSecOps project using one parameterized Jenkins pipeline to build, test, analyze, scan, containerize, and deploy a Spring Boot application to Amazon EKS or Google Kubernetes Engine (GKE).
 
-> **Monitoring note:** The current application does not expose
-> `http_server_requests_seconds_count`, so the custom Application
-> Overview dashboard reports **application workload CPU and memory
-> usage** rather than HTTP request rate or response time.
+The target cloud is selected using the Jenkins parameter:
 
-## Architecture
+CLOUD_PROVIDER = AWS
 
-``` text
-GitHub
-   |
-   v
+or:
+
+CLOUD_PROVIDER = GCP
+
+Monitoring note: The current application does not expose the Prometheus HTTP server request metric http_server_requests_seconds_count. Therefore, the custom Application Overview dashboard focuses on application workload CPU and memory usage rather than HTTP request rate or response time.
+
+-------------------------------------------------------------
+
+Project Highlights
+
+• One parameterized Jenkins pipeline
+• CLOUD_PROVIDER=AWS or CLOUD_PROVIDER=GCP
+• Terraform-based AWS and GCP infrastructure
+• Maven application build and testing
+• Trivy FileSystem scanning
+• OWASP Dependency-Check dependency vulnerability scanning
+• SonarQube source-code analysis
+• Docker container image creation
+• Trivy container-image scanning
+• Amazon ECR integration
+• Google Artifact Registry integration
+• Amazon EKS deployment
+• GKE deployment
+• Helm-based Kubernetes deployment
+• Prometheus monitoring
+• Grafana dashboards
+• Cloud-specific deployment paths within a shared CI/CD pipeline
+
+-------------------------------------------------------------
+
+Technology Stack
+
+Area                           Technology
+Source Control	                Git,GitHub
+CI/CD		         	          Jenkins
+Build		         	          Maven
+Application		                Java / Spring Boot
+Containerization		          Docker
+Infrastructure as Code		    Terraform
+AWS		 	                   VPC, ECR, EKS, IAM, S3, AWS Load Balancer Controller
+GCP		         	          VPC, GKE, Artifact Registry, IAM, Cloud NAT
+Kubernetes		                Kubernetes
+Deployment		                Helm
+Code Quality		             SonarQube
+Dependency Security		       OWASP Dependency-Check
+Container Security		       Trivy
+Monitoring		                Prometheus, Grafana
+
+-------------------------------------------------------------
+
+CI/CD Flow
+
+The pipeline has common stages followed by a cloud-specific deployment path.
+
+Shared stages
+• Checkout
+• Maven build
+• Tests
+• Trivy FileSystem Scan
+• OWASP Dependency-Check
+• SonarQube analysis
+• Docker image build
+• Trivy container-image scan
+
+AWS path
+• Authenticate with Amazon ECR
+• Push image to ECR
+• Configure EKS access
+• Deploy with Helm
+• Verify Kubernetes resources
+
 Jenkins
    |
-   +--> Build/Test --> SonarQube --> OWASP Dependency-Check --> Trivy --> Docker
+   v
+Docker Build
    |
-   +---------------------------- AWS ---------------------------+
-   |                                                            |
-   |                                                           ECR
-   |                                                            |
-   |                                                           EKS
-   |                                                            |
-   |                                                           Helm
-   |                                                            |
-   +---------------------------- GCP ---------------------------+
-                                                                |
-                                                          Artifact Registry
-                                                                |
-                                                               GKE
-                                                                |
-                                                               Helm
-
-                         Kubernetes
-                             |
-                        Prometheus
-                             |
-                          Grafana
-```
-
-## Project Highlights
-
--   One Jenkins pipeline controlled by `CLOUD_PROVIDER=AWS` or `GCP`
--   Terraform-based AWS and GCP infrastructure
--   Maven build and tests
--   SonarQube code-quality analysis
--   OWASP Dependency-Check dependency scanning
--   Trivy container-image scanning
--   Docker image build
--   AWS ECR and GCP Artifact Registry
--   AWS EKS and GKE deployment
--   Helm-based Kubernetes deployment
--   Prometheus and Grafana monitoring
-
-## Technology Stack
-
-  Area                  Technology
-  --------------------- ---------------------------------------------
-  Source Control        Git, GitHub
-  CI/CD                 Jenkins
-  Build                 Maven
-  Application           Java / Spring Boot
-  Containerization      Docker
-  IaC                   Terraform
-  AWS                   VPC, ECR, EKS, IAM, S3, ALB Controller
-  GCP                   VPC, GKE, Artifact Registry, IAM, Cloud NAT
-  Kubernetes            Kubernetes
-  Deployment            Helm
-  Code Quality          SonarQube
-  Dependency Security   OWASP Dependency-Check
-  Container Security    Trivy
-  Monitoring            Prometheus, Grafana
-
-## Repository Structure
-
-``` text
-multicloud-devsecops-platform/
-├── application/
-├── helm/
-│   └── multicloud-devsecops/
-├── kubernetes/
-├── monitoring/
-│   ├── namespace.yaml
-│   └── grafana/
-│       ├── dashboard-configmap.yaml
-│       └── dashboards/
-│           ├── application.json
-│           ├── kubernetes-cluster.json
-│           ├── kubernetes-pods.json
-│           └── node-exporter.json
-├── sonarqube/
-├── terraform/
-│   ├── aws/
-│   └── gcp/
-├── docs/
-│   ├── screenshots/
-│   ├── PROJECT-INTERVIEW-GUIDE.md
-│   └── SCREENSHOT-GUIDE.md
-├── Jenkinsfile
-└── README.md
-```
-
-## CI/CD Flow
-
-### Shared stages
-
-1.  Checkout
-2.  Maven build
-3.  Tests
-4.  SonarQube
-5.  OWASP Dependency-Check
-6.  Trivy
-7.  Docker build
-
-### AWS path
-
-1.  Push image to ECR
-2.  Configure EKS
-3.  Deploy with Helm
-4.  Verify Kubernetes resources
-
-### GCP path
-
-1.  Push image to Artifact Registry
-2.  Configure GKE
-3.  Deploy with Helm
-4.  Verify Kubernetes resources
-
-## Infrastructure
-
-### AWS
-
-Terraform provisions the VPC/networking, public/private subnets,
-Internet Gateway, NAT Gateway, route tables, security groups, Jenkins
-infrastructure, ECR, EKS, managed node group, IAM/OIDC, EBS CSI support,
-AWS Load Balancer Controller and supporting S3 resources.
-
-### GCP
-
-Terraform provisions the VPC, Jenkins and GKE subnets, GKE secondary
-ranges, zonal GKE cluster/node pool, Jenkins VM/load-balancing
-components, Artifact Registry, service accounts/IAM and Cloud
-NAT/networking.
-
-## Security
-
-The pipeline applies security checks before deployment:
-
-``` text
-Build/Test
+   v
+Trivy Scan
    |
-SonarQube
+   v
+Amazon ECR
    |
+   v
+Amazon EKS
+   |
+   v
+Helm
+   |
+   v
+Application
+
+GCP path
+• Authenticate with Google Cloud
+• Push image to Artifact Registry
+• Configure GKE access
+• Deploy with Helm
+• Verify Kubernetes resources
+
+Jenkins
+   |
+   v
+Docker Build
+   |
+   v
+Trivy Scan
+   |
+   v
+Artifact Registry
+   |
+   v
+GKE
+   |
+   v
+Helm
+   |
+   v
+Application
+
+-------------------------------------------------------------
+
+Jenkins Parameter
+
+The pipeline uses a single cloud-selection parameter:
+
+parameters {
+
+    choice(
+        name: 'CLOUD_PROVIDER',
+        choices: ['AWS', 'GCP'],
+        description: 'Select the cloud provider to deploy to'
+    )
+}
+
+This parameter determines which cloud-specific deployment path is executed.
+
+The build and security stages remain common.
+
+-------------------------------------------------------------
+
+Infrastructure
+
+AWS
+
+Terraform provisions the AWS infrastructure required by the platform, including:
+
+• VPC
+• Public and private subnets
+• Internet Gateway
+• NAT Gateway
+• Route tables
+• Security groups
+• Jenkins infrastructure
+• Amazon ECR
+• Amazon EKS
+• Managed node group
+• IAM/OIDC configuration
+• EBS CSI support
+• AWS Load Balancer Controller
+• Supporting S3 resources
+
+High-level deployment:
+
+Terraform
+   |
+   +--> AWS Networking
+   |
+   +--> Jenkins
+   |
+   +--> ECR
+   |
+   +--> EKS
+   |
+   +--> IAM/OIDC
+   |
+   +--> Supporting AWS resources
+
+GCP
+
+Terraform provisions the GCP infrastructure required by the platform, including:
+
+• VPC
+• Jenkins VM
+• GKE subnet
+• GKE secondary IP ranges
+• Zonal GKE cluster
+• GKE node pool
+• Artifact Registry
+• Service accounts
+• IAM
+• Cloud NAT
+• Supporting networking components
+
+The current GKE deployment uses a zonal cluster in:
+
+us-east1-d
+
+-------------------------------------------------------------
+
+Security
+
+Security checks are performed before deployment:
+
+Maven Build/Test
+       |
+       v
+  Trivy FileSystem Scan
+       |
+       v
 OWASP Dependency-Check
-   |
+       |
+       v
+   SonarQube
+       |
+       v
+   Docker Build
+       |
+       v
+    Trivy
+       |
+       v
+    Registry
+       |
+       v
+ Kubernetes
+
+OWASP Dependency-Check
+Identifies known vulnerabilities in third-party application dependencies.
+
+SonarQube
+Provides source-code and static analysis.
+
 Trivy
-   |
-Docker Image
-   |
-Registry
-   |
-Kubernetes
-```
+Scans the complete FileSystem and Docker container image for known vulnerabilities before it is pushed to the selected cloud registry.
 
-SonarQube provides source-code analysis, Dependency-Check identifies
-vulnerable dependencies, and Trivy scans the container image.
+Jenkins Credentials
+Sensitive values such as SonarQube tokens and NVD API keys are stored in Jenkins Credentials rather than committed to source control.
 
-## Monitoring
+IAM and RBAC
+Cloud IAM and Kubernetes RBAC control access to cloud and Kubernetes resources.
 
-Custom dashboards:
+-------------------------------------------------------------
 
--   **Application Overview** --- application pod CPU and memory
--   **Kubernetes Cluster Overview** --- node CPU
--   **Kubernetes Pods Overview** --- pod CPU
--   **Node Exporter / Nodes** --- node-level infrastructure metrics
+Monitoring
 
-Verified metrics:
+The project uses:
 
-``` promql
+• Prometheus
+• Grafana
+• kube-prometheus-stack
+• Node Exporter
+• Kubernetes metrics
+• Custom Grafana dashboards
+
+The monitoring stack is deployed in the:
+monitoring namespace
+
+Custom dashboards
+
+Application Overview
+Displays application workload resource usage, including:
+Application pod CPU
+Application pod memory
+
+Kubernetes Cluster Overview
+Displays Kubernetes cluster/node resource information, including:
+Node CPU
+
+Kubernetes Pods Overview
+Displays pod/workload resource information, including:
+Pod CPU
+Node Exporter / Nodes
+
+Provides node-level infrastructure metrics exposed by Node Exporter.
+
+-------------------------------------------------------------
+
+Verified Prometheus Metrics
+
+The project uses metrics such as:
 node_cpu_seconds_total
 container_cpu_usage_seconds_total
 container_memory_working_set_bytes
-```
 
-The application does not currently expose:
+These metrics provide visibility into Kubernetes nodes, pods, and application workload resource usage.
 
-``` promql
+-------------------------------------------------------------
+
+Monitoring Limitation
+
+The current application does not expose:
 http_server_requests_seconds_count
-```
 
-Therefore the project does not claim HTTP request-rate or response-time
-monitoring.
+Therefore, this project does not claim to provide:
+HTTP request rate
+HTTP response time
+HTTP request duration
+Endpoint-level HTTP performance monitoring
 
-## Interview Explanation
+Instead, the Application Overview dashboard focuses on:
+Application Pod CPU
+Application Pod Memory
 
-### 30 seconds
+This keeps the monitoring documentation aligned with the metrics actually available from the current application.
 
-> I built a multi-cloud DevSecOps platform using Terraform, Jenkins,
-> Docker, Kubernetes and Helm. A single parameterized Jenkins pipeline
-> can deploy a Spring Boot application to either AWS EKS or GKE. The
-> pipeline performs Maven build and testing, SonarQube analysis, OWASP
-> Dependency-Check, Trivy scanning and Docker image creation, then
-> pushes the image to ECR or Artifact Registry and deploys it with Helm.
-> Prometheus and Grafana provide Kubernetes and application workload
-> monitoring.
+-------------------------------------------------------------
 
-### 2 minutes
+Kubernetes Verification:
+kubectl get nodes
+kubectl get nodes -o wide
+kubectl get pods -A
+kubectl get namespaces
+kubectl get svc -A
+kubectl get ingress -A
+kubectl get deployments -A
 
-> The goal was to create one reusable CI/CD workflow instead of
-> maintaining separate pipelines for AWS and GCP. Terraform provisions
-> the cloud infrastructure. Jenkins uses a `CLOUD_PROVIDER` parameter to
-> select AWS or GCP. The common stages handle checkout, Maven
-> build/test, SonarQube, Dependency-Check, Trivy and Docker. The AWS
-> path pushes to ECR and deploys to EKS, while the GCP path pushes to
-> Artifact Registry and deploys to GKE. Helm keeps the Kubernetes
-> deployment reusable with cloud-specific values. Prometheus and Grafana
-> provide monitoring. The Application Overview dashboard intentionally
-> monitors application workload CPU and memory because the current
-> application does not expose the `http_server_requests_*` metrics
-> needed for HTTP traffic panels.
+Application:
+kubectl get pods -n application
+kubectl get svc -n application
+kubectl get ingress -n application
 
-## Honest Interview Positioning
+Monitoring:
+kubectl get pods -n monitoring
+kubectl get svc -n monitoring
+kubectl get pvc -n monitoring
+kubectl get ingress -n monitoring
 
-Say:
+-------------------------------------------------------------
 
-> Application workload resource monitoring --- CPU and memory
-> consumption of application pods.
+Helm Verification
+helm list -A
 
-Do **not** say:
+Application:
+helm list -n application
+helm status <RELEASE_NAME> -n application
 
-> We monitor HTTP request rate and response time.
+Monitoring:
+helm list -n monitoring
+helm status kube-prometheus-stack -n monitoring
 
-Also avoid claiming zero vulnerabilities, full production readiness, or
-high availability unless the implemented architecture actually proves
-it.
+-------------------------------------------------------------
 
-## Evidence
+GCP Notes
 
-Screenshots are stored under:
+The GCP deployment uses a zonal GKE cluster.
 
-``` text
-docs/screenshots/
-```
+Use:
+gcloud container clusters get-credentials \
+  multicloud-devsecops-gke \
+  --zone us-east1-d \
+  --project="$PROJECT_ID"
 
-The recommended evidence set is:
+Do not replace --zone with --region unless the cluster is actually regional.
 
-1.  `01-architecture.png`
-2.  `02-github-repository.png`
-3.  `03-jenkins-pipeline-aws.png`
-4.  `04-jenkins-pipeline-gcp.png`
-5.  `05-security-scanning.png`
-6.  `06-aws-ecr.png`
-7.  `07-eks-cluster.png`
-8.  `08-gcp-artifact-registry.png`
-9.  `09-gke-cluster.png`
-10. `10-application.png`
-11. `11-grafana-application.png`
-12. `12-grafana-kubernetes.png`
+A restricted GCP sandbox may also prevent the active cloud user from modifying project IAM policies.
 
-Only the strongest 5--6 should normally be embedded in this README.
+For example:
+resourcemanager.projects.setIamPolicy
+may be unavailable to the active sandbox identity.
 
-## Interview Preparation
+In such cases, the required IAM permissions must be granted by an authorized sandbox administrator.
 
-See [`docs/PROJECT-INTERVIEW-GUIDE.md`](docs/PROJECT-INTERVIEW-GUIDE.md)
-for project explanation, tool-by-tool questions, troubleshooting
-scenarios, security questions, monitoring questions, and resume-ready
-wording.
+A Kubernetes RBAC binding does not necessarily grant missing Google Cloud IAM permissions.
 
-See [`docs/SCREENSHOT-GUIDE.md`](docs/SCREENSHOT-GUIDE.md) for exactly
-what each screenshot should prove and how to organize them.
+-------------------------------------------------------------
+
+Required GCP APIs
+
+The current infrastructure requires APIs including:
+
+gcloud services enable \
+  compute.googleapis.com \
+  container.googleapis.com \
+  iam.googleapis.com \
+  iamcredentials.googleapis.com \
+  cloudresourcemanager.googleapis.com \
+  serviceusage.googleapis.com \
+  storage.googleapis.com \
+  artifactregistry.googleapis.com \
+  servicenetworking.googleapis.com
+
+-------------------------------------------------------------
+
+Troubleshooting
+
+Jenkins cannot access Docker:
+groups jenkins
+sudo -u jenkins docker ps
+sudo systemctl status docker --no-pager
+
+If necessary:
+sudo usermod -aG docker jenkins
+Restart Jenkins after changing the group membership.
+
+Wrong Kubernetes context:
+kubectl config current-context
+kubectl config view --minify
+kubectl get nodes
+
+GKE container.nodes.list error
+Verify:
+• Jenkins identity
+• Google Cloud IAM roles
+• required GKE permissions
+• Kubernetes RBAC configuration
+
+A Kubernetes ClusterRoleBinding alone may not fix a GKE IAM authorization error.
+
+Artifact Registry upload denied
+Verify that the Jenkins service account has the appropriate Artifact Registry Writer permission.
+
+AWS EKS AccessDenied
+Verify that the IAM role used by Jenkins has the required EKS permissions.
+
+Use the narrowest practical permissions rather than broad administrative permissions.
+
+-------------------------------------------------------------
+
+Security and Secrets
+
+The following must not be committed to GitHub:
+
+• SonarQube tokens
+• NVD API keys
+• Cloud credentials
+• Private keys
+• Passwords
+• Service-account private key files
+• Other authentication secrets
+
+Use Jenkins Credentials, cloud IAM, workload identities, or appropriate managed secret stores instead.
+
+Before pushing the repository, verify that no secrets are present in:
+
+Jenkinsfile
+Terraform files
+YAML files
+Helm values
+README.md
+documentation
+shell scripts
+
+-------------------------------------------------------------
+
+Final Validation Checklist
+
+Infrastructure:
+• AWS Terraform infrastructure provisioned
+• GCP Terraform infrastructure provisioned
+• Jenkins available
+• ECR available
+• Artifact Registry available
+• EKS available
+• GKE available
+
+Jenkins:
+• Jenkins running
+• Docker accessible by Jenkins
+• Maven available
+• Kubectl available
+• Helm available
+• Trivy available
+• SonarQube configured
+• Dependency-Check configured
+• Required credentials configured
+
+CI/CD:
+• Checkout succeeds
+• Maven build succeeds
+• Tests succeed
+• Trivy FileSystem Scan
+• OWASP Dependency-Check succeeds
+• SonarQube analysis succeeds
+• Docker image builds
+• Trivy scan executes
+
+AWS:
+• Image pushed to ECR
+• EKS credentials configured
+• Application deployed to EKS
+• Application pods Ready
+• Application Service available
+• Application Ingress available
+
+GCP:
+• Image pushed to Artifact Registry
+• GKE credentials configured
+• Application deployed to GKE
+• Application pods Ready
+• Application Service available
+• Application Ingress available
+
+Monitoring:
+• Prometheus Ready
+• Grafana Ready
+• Monitoring services available
+• Monitoring ingress available
+• Application dashboard available
+• Kubernetes cluster dashboard available
+• Kubernetes pods dashboard available
+• Node-level metrics available
+
+Helm:
+• Application Helm release healthy
+• Monitoring Helm release healthy
+
+-------------------------------------------------------------
+
+Production Recommendations
+
+For production environments:
+• Use least-privilege IAM.
+• Use least-privilege Kubernetes RBAC.
+• Use separate service identities for each environment.
+• Rotate credentials and tokens.
+• Store secrets in managed secret-management systems.
+• Avoid cluster-admin access for Jenkins.
+• Prefer repository-level Artifact Registry permissions.
+• Keep cloud-specific project IDs out of reusable documentation.
+• Pin important Terraform provider versions.
+• Pin important Helm chart versions.
+• Define resource requests and limits.
+• Configure monitoring retention.
+• Implement backup and recovery policies.
+• Use separate environments for development, staging, and production.
+• Protect production credentials and deployment branches.
+
+-------------------------------------------------------------
+
+Conclusion
+
+The Multi-Cloud DevSecOps Platform demonstrates an end-to-end DevSecOps workflow using a single parameterized Jenkins pipeline.
+
+The same pipeline can deploy the application to either:
+
+AWS → ECR → EKS → Helm
+
+or:
+
+GCP → Artifact Registry → GKE → Helm
+
+while sharing the common:
+
+Git
+ ↓
+Jenkins
+ ↓
+Maven
+ ↓
+Trivy FileSystem Scan
+ ↓
+OWASP Dependency-Check
+ ↓
+SonarQube
+ ↓
+Docker
+ ↓
+Trivy
+ ↓
+Cloud Registry
+ ↓
+Kubernetes
+ ↓
+Helm
+ ↓
+Prometheus / Grafana
+
+The project demonstrates Infrastructure as Code, CI/CD automation, containerization, Kubernetes deployment, security scanning, cloud-specific deployment, and observability across AWS and Google Cloud.
+
+The monitoring documentation intentionally reflects the metrics exposed by the current application and does not claim HTTP request-rate or response-time monitoring that is not currently available.
